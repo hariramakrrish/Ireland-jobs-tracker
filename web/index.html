@@ -101,6 +101,7 @@
     <div class="stat"><div class="stat-n" id="s-total">–</div><div class="stat-l">Total Jobs</div></div>
     <div class="stat"><div class="stat-n" id="s-applied">–</div><div class="stat-l">Applied</div></div>
     <div class="stat"><div class="stat-n" id="s-interview">–</div><div class="stat-l">Interviewing</div></div>
+    <div class="stat"><div class="stat-n" id="s-rejected">–</div><div class="stat-l">Rejected</div></div>
     <div class="stat"><div class="stat-n" id="s-today">–</div><div class="stat-l">Added Today</div></div>
   </div>
 </header>
@@ -123,6 +124,7 @@
     <span class="chip" data-status="Not Applied">Not Applied</span>
     <span class="chip" data-status="Applied">Applied</span>
     <span class="chip" data-status="Interviewing">Interviewing</span>
+    <span class="chip" data-status="Rejected">Rejected</span>
   </div>
 </div>
 
@@ -178,6 +180,7 @@ function renderStats(jobs) {
   document.getElementById("s-total").textContent    = jobs.length;
   document.getElementById("s-applied").textContent  = jobs.filter(j => (statuses[j.id]||j.status)==="Applied").length;
   document.getElementById("s-interview").textContent= jobs.filter(j => (statuses[j.id]||j.status)==="Interviewing").length;
+  document.getElementById("s-rejected").textContent = jobs.filter(j => (statuses[j.id]||j.status)==="Rejected").length;
   document.getElementById("s-today").textContent    = jobs.filter(j => j.added === today).length;
 }
 
