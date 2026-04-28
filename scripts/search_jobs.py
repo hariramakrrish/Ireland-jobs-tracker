@@ -19,7 +19,8 @@ SEARCHES = [
     ("Data Scientist",  ["data scientist ireland"]),
     ("AI / ML",         ["machine learning engineer ireland", "ai engineer ireland"]),
     ("IT Support",      ["IT support engineer ireland",   "desktop support engineer ireland"]),
-    ("Full Stack",      ["full stack developer ireland",  "full stack engineer ireland"]),
+    ("Full Stack",          ["full stack developer ireland",       "full stack engineer ireland"]),
+    ("Production Support",  ["production support engineer ireland", "application support engineer ireland", "L2 support engineer ireland"]),
 ]
 
 RESULTS_PER_QUERY = 4   # jobs per search query

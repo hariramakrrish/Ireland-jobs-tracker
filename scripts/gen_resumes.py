@@ -226,6 +226,38 @@ CONTENT = {
         ]),
     ],
 },
+"prod_support": {
+    "bullets": [
+        "Managed <b>end-to-end production incident response</b> across mission-critical enterprise applications, achieving average MTTR under 30 minutes and maintaining <b>99.9% system availability</b> SLA targets.",
+        "Performed <b>root cause analysis (RCA)</b> on P1/P2 production incidents using log analysis, query profiling, and distributed tracing tools, producing actionable remediation plans to prevent recurrence.",
+        "Coordinated <b>cross-functional war rooms</b> with development, infrastructure, and business teams during major incidents, driving structured resolution in high-pressure environments.",
+        "Maintained and enhanced <b>Java Spring Boot and Python-based backend services</b>, applying patches, hotfixes, and configuration changes to resolve production defects with minimal downtime.",
+        "Developed <b>automated monitoring and alerting solutions</b> using Datadog, Grafana, and PagerDuty, reducing false-positive alert noise by 40% and improving incident detection accuracy.",
+        "Worked with <b>PostgreSQL, MySQL, and Oracle databases</b> to diagnose slow queries, lock contention, and data integrity issues, resolving production data incidents within agreed SLAs.",
+        "Maintained detailed <b>runbooks, incident logs, and post-mortem documentation</b>, enabling knowledge transfer and reducing resolution time for recurring incident patterns by 35%.",
+        "Collaborated with development teams in an <b>Agile/DevOps</b> environment to implement production hardening improvements, CI/CD pipeline checks, and pre-release smoke testing frameworks.",
+    ],
+    "skills": [
+        "<b>Production Support</b>  –  P1/P2 incident management, RCA, MTTR optimisation, SLA compliance, runbook creation.",
+        "<b>Monitoring &amp; Alerting</b>  –  Datadog, Grafana, Splunk, PagerDuty, CloudWatch, log analysis and triage.",
+        "<b>Programming Languages</b>  –  Java, Python, SQL, Bash scripting for incident automation and tooling.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, Oracle; query diagnostics, lock analysis, data integrity checks.",
+        "<b>Cloud &amp; Infrastructure</b>  –  AWS (EC2, CloudWatch, S3), Linux, Docker, Kubernetes.",
+        "<b>Backend &amp; APIs</b>  –  Java Spring Boot, REST APIs, microservices; hotfix deployment and service management.",
+        "<b>Development Practices</b>  –  ITIL, Agile/DevOps, Git, Jira, incident documentation, on-call support.",
+    ],
+    "projects": [
+        ("Production Incident Automation Framework (HCL Technologies)", [
+            "Built a Python-based incident automation tool integrated with PagerDuty and Jira, auto-creating tickets, assigning on-call engineers, and populating RCA templates — reducing manual overhead by 40% per incident.",
+            "Implemented automated pre-checks and health-validation scripts triggered post-deployment, catching 80% of configuration-related production issues before user impact.",
+            "Developed a Grafana dashboard consolidating application health, error rates, and SLA metrics, enabling the support team to identify degradation trends within minutes of occurrence.",
+        ]),
+        ("Database Incident Triage & Optimisation (HCL Technologies)", [
+            "Diagnosed and resolved critical PostgreSQL lock contention and slow-query incidents causing production degradation, applying targeted index optimisations and query rewrites that improved throughput by 35%.",
+            "Created standardised database runbooks covering common incident patterns, enabling L1 engineers to self-resolve 30% of recurring database incidents without escalation.",
+        ]),
+    ],
+},
 "it_support": {
     "bullets": [
         "Provided <b>Level 1 and Level 2 IT support</b> for 300+ end users across hardware, software, and network issues, maintaining an average resolution time under 2 hours and achieving <b>95% SLA compliance</b>.",
@@ -261,13 +293,15 @@ CONTENT = {
 
 def get_role_key(category):
     cat = category.lower()
-    if "java" in cat or "backend" in cat:         return "java"
-    if "python" in cat:                            return "python"
-    if "data analyst" in cat:                      return "data_analyst"
-    if "data scientist" in cat:                    return "data_scientist"
-    if "ai" in cat or "ml" in cat:                 return "ai_ml"
-    if "it support" in cat or "support" in cat:    return "it_support"
-    if "full stack" in cat:                        return "full_stack"
+    if "java" in cat or "backend" in cat:                   return "java"
+    if "python" in cat:                                     return "python"
+    if "data analyst" in cat:                               return "data_analyst"
+    if "data scientist" in cat:                             return "data_scientist"
+    if "ai" in cat or "ml" in cat:                          return "ai_ml"
+    if "production support" in cat or "prod support" in cat: return "prod_support"
+    if "it support" in cat or "it " in cat:                 return "it_support"
+    if "support" in cat:                                    return "prod_support"
+    if "full stack" in cat:                                 return "full_stack"
     return "java"
 
 def make_resume(filename, exp_bullets, skills, proj_list, certs):
