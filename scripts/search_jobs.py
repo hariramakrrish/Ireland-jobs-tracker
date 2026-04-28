@@ -11,19 +11,80 @@ APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
 ROOT        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JOBS_FILE   = os.path.join(ROOT, "web", "data", "jobs.json")
 
-# Role categories and their search terms
+# Role categories and their search terms — all targeting 0-3 years / graduate / junior
 SEARCHES = [
-    ("Java / Backend",  ["java developer ireland",        "java software engineer ireland", "spring boot developer ireland"]),
-    ("Python",          ["python developer ireland",      "python software engineer ireland"]),
-    ("Data Analyst",    ["data analyst ireland",          "business analyst ireland"]),
-    ("Data Scientist",  ["data scientist ireland"]),
-    ("AI / ML",         ["machine learning engineer ireland", "ai engineer ireland"]),
-    ("IT Support",      ["IT support engineer ireland",   "desktop support engineer ireland"]),
-    ("Full Stack",          ["full stack developer ireland",       "full stack engineer ireland"]),
-    ("Production Support",  ["production support engineer ireland", "application support engineer ireland", "L2 support engineer ireland"]),
+    ("Java / Backend",  [
+        "junior java developer ireland",
+        "graduate java engineer ireland",
+        "associate java developer ireland",
+        "entry level spring boot developer ireland",
+    ]),
+    ("Python",          [
+        "junior python developer ireland",
+        "graduate python engineer ireland",
+        "entry level python developer ireland",
+    ]),
+    ("Data Analyst",    [
+        "junior data analyst ireland",
+        "graduate data analyst ireland",
+        "entry level business analyst ireland",
+    ]),
+    ("Data Scientist",  [
+        "junior data scientist ireland",
+        "graduate data scientist ireland",
+        "entry level data scientist ireland",
+    ]),
+    ("AI / ML",         [
+        "junior machine learning engineer ireland",
+        "graduate ai engineer ireland",
+        "entry level ml engineer ireland",
+    ]),
+    ("IT Support",      [
+        "junior IT support engineer ireland",
+        "graduate IT support ireland",
+        "entry level desktop support ireland",
+    ]),
+    ("Full Stack",      [
+        "junior full stack developer ireland",
+        "graduate software engineer ireland",
+        "entry level full stack ireland",
+    ]),
+    ("Production Support", [
+        "junior production support engineer ireland",
+        "graduate application support engineer ireland",
+        "entry level IT support analyst ireland",
+    ]),
 ]
 
-RESULTS_PER_QUERY = 4   # jobs per search query
+RESULTS_PER_QUERY = 5   # jobs per search query
+
+# ── Experience filter ────────────────────────────────────────────────────────
+# Titles that signal 4+ years seniority — skip these entirely
+SENIOR_TITLE_KEYWORDS = re.compile(
+    r"\b(senior|sr\.?|lead|principal|staff|head\s+of|director|vp\b|vice\s+president"
+    r"|architect|manager|consultant|expert|specialist\s+iii|level\s+[4-9]"
+    r"|[4-9]\+?\s*years?|[1-9][0-9]\+?\s*years?)\b",
+    re.IGNORECASE
+)
+
+# Titles that explicitly confirm 0-3 year suitability — always allow
+JUNIOR_TITLE_KEYWORDS = re.compile(
+    r"\b(junior|jr\.?|graduate|grad\b|intern|trainee|associate|entry.?level"
+    r"|new\s+grad|early\s+career|apprentice|1st\s+year|2nd\s+year|3rd\s+year"
+    r"|mid.?level|mid.?senior)\b",
+    re.IGNORECASE
+)
+
+def is_experience_appropriate(title: str) -> bool:
+    """Return True only if the job title is suitable for 0-3 years experience."""
+    # Explicitly junior/grad → always include
+    if JUNIOR_TITLE_KEYWORDS.search(title):
+        return True
+    # Contains senior/lead/etc. keywords → always exclude
+    if SENIOR_TITLE_KEYWORDS.search(title):
+        return False
+    # Neutral title (e.g. "Software Engineer", "Python Developer") → include
+    return True
 
 def slug(text):
     text = re.sub(r"[^a-z0-9\s]", "", text.lower().strip())
@@ -37,7 +98,7 @@ def search_via_rag(client, query, max_results=5):
     url = (
         f"https://www.linkedin.com/jobs/search/"
         f"?keywords={query.replace(' ', '%20')}"
-        f"&location=Ireland&f_TPR=r2592000&f_E=2%2C3"   # last 30 days, mid-senior
+        f"&location=Ireland&f_TPR=r2592000&f_E=1%2C2%2C3"  # last 30 days, Internship + Entry + Associate (0-3 yrs)
     )
     try:
         run = client.actor("apify/rag-web-browser").call(
@@ -105,6 +166,10 @@ def main():
             print(f"      Searching: {query}")
             results = search_via_rag(client, query, RESULTS_PER_QUERY)
             for r in results:
+                # Skip jobs requiring more than 3 years experience
+                if not is_experience_appropriate(r["title"]):
+                    print(f"      ✗  Skipped (too senior): {r['title']} @ {r['company']}")
+                    continue
                 jid = job_id(r["company"], r["title"])
                 if jid not in existing_ids:
                     entry = {
