@@ -70,7 +70,8 @@
   .status-applied    { background: #dcfce7; color: #15803d; border-color: #86efac; }
   .status-not-applied{ background: #f1f5f9; color: var(--grey); }
   .status-interviewing{ background: #fef9c3; color: #a16207; border-color: #fde047; }
-  .status-rejected   { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+  .status-rejected           { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+  .status-no-longer-available{ background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
 
   /* Action buttons */
   .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 6px; font-size: .8rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
@@ -125,6 +126,7 @@
     <span class="chip" data-status="Applied">Applied</span>
     <span class="chip" data-status="Interviewing">Interviewing</span>
     <span class="chip" data-status="Rejected">Rejected</span>
+    <span class="chip" data-status="No Longer Available">No Longer Available</span>
   </div>
 </div>
 
@@ -162,7 +164,7 @@ const CAT_COLORS = {
   "Full Stack":          { bg:"#e0f2fe", fg:"#0369a1" },
   "Production Support":  { bg:"#fff7ed", fg:"#c2410c" },
 };
-const STATUS_OPTS = ["Not Applied","Applied","Interviewing","Rejected"];
+const STATUS_OPTS = ["Not Applied","Applied","Interviewing","Rejected","No Longer Available"];
 
 let ALL_JOBS = [];
 let statuses = {};   // persisted in localStorage
