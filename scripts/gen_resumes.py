@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+"""
+Generate tailored PDF resumes for every job in web/data/jobs.json
+that doesn't already have a PDF in web/resumes/.
+Uses Vishnu-format layout with Times font.
+"""
+import os, re, json
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                 Table, TableStyle)
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+
+ROOT        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+JOBS_FILE   = os.path.join(ROOT, "web", "data", "jobs.json")
+RESUME_DIR  = os.path.join(ROOT, "web", "resumes")
+os.makedirs(RESUME_DIR, exist_ok=True)
+
+BLACK = colors.HexColor("#000000")
+
+def slug(text):
+    text = re.sub(r"[^a-z0-9\s]", "", text.lower().strip())
+    return re.sub(r"\s+", "_", text)[:40]
+
+# ═══════════════════════════════════════════════════════════════════
+# ROLE CONTENT BANKS
+# ═══════════════════════════════════════════════════════════════════
+CERTS = [
+    "IELTS Academic: Overall Band Score <b>7 out of 9</b>, issued by IELTS Official, Test Date: 28/AUG/2023",
+    "<b>Full Stack: Java Spring Boot</b> and Angular  (Great Learning)",
+    "Certificate of Completion in Web Development from <b>University of California</b>, Davis (Coursera)",
+    "Certificate of Completion in Python programming from <b>University of Michigan</b> (Coursera)",
+]
+
+CONTENT = {
+"java": {
+    "bullets": [
+        "Designed and developed scalable backend <b>microservices in Java 11/17 and Spring Boot</b> for high-traffic enterprise systems, contributing to a <b>25% reduction in system response time</b> across key service endpoints.",
+        "Built and maintained <b>RESTful APIs</b> enabling seamless integration between internal applications and third-party systems, ensuring reliable, secure, and auditable data exchange across distributed services.",
+        "Led query optimisation initiatives across <b>PostgreSQL, MySQL, and MongoDB</b>, implementing targeted indexing strategies and execution plan analysis, improving data processing efficiency by <b>40%</b>.",
+        "Implemented <b>Spring Security and OAuth2</b> authentication patterns for API security, hardening service-to-service communication in line with enterprise security standards.",
+        "Collaborated with cross-functional teams including QA engineers, product owners, and architects to deliver backend features in an <b>Agile/Scrum</b> environment with two-week sprint cycles.",
+        "Supported application deployments on <b>AWS (EC2, S3, CloudWatch)</b> using Docker and Kubernetes, contributing to a <b>35% reduction in system downtime</b> through proactive monitoring.",
+        "Drove <b>CI/CD pipeline improvements</b> using Jenkins and Git, reducing deployment lead time by 30% through automated build, test, and release workflows.",
+        "Wrote comprehensive unit and integration tests using <b>JUnit and Mockito</b>, achieving over 80% code coverage and catching regression defects before production deployments.",
+    ],
+    "skills": [
+        "<b>Technologies</b>  –  Spring Boot, Microservices architecture, REST APIs, and backend service design.",
+        "<b>Programming Languages</b>  –  Proficient in Java 11/17, Python, SQL, and Bash scripting.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, and MongoDB; query optimisation, indexing, and performance tuning.",
+        "<b>Cloud &amp; DevOps</b>  –  AWS (EC2, S3, Lambda, CloudWatch), Docker, Kubernetes, and CI/CD pipeline management.",
+        "<b>Frameworks &amp; APIs</b>  –  Spring Boot, Spring Cloud, Spring Data JPA, Spring Security, OAuth2, and API gateway.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, automated testing with JUnit and Mockito, code reviews, TDD.",
+        "<b>Tools &amp; IDEs</b>  –  IntelliJ IDEA, Eclipse, Postman, Jenkins, Visual Studio Code.",
+    ],
+    "projects": [
+        ("Customer Account Management API – Backend Development (HCL Technologies)", [
+            "Designed and implemented RESTful API endpoints in Java and Spring Boot for customer account operations including profile updates, JWT-based authentication, and transaction history retrieval.",
+            "Implemented input validation, exception handling, and standardised response structures across all endpoints, reducing API error rates by 20% and improving consistency for consuming teams.",
+            "Wrote comprehensive unit and integration tests using JUnit and Mockito, achieving over 80% code coverage and identifying edge-case defects before production release.",
+        ]),
+        ("Notification & Alerting Microservice (HCL Technologies)", [
+            "Built a standalone Spring Boot microservice for sending email and in-app notifications triggered by downstream service events via REST API, decoupling notification logic from core business services.",
+            "Implemented retry logic and dead-letter queue handling for failed dispatches, ensuring no critical alerts were silently dropped under transient network failures.",
+            "Containerised the service with Docker and validated end-to-end behaviour in a staging Kubernetes environment.",
+        ]),
+    ],
+},
+"full_stack": {
+    "bullets": [
+        "Developed full-stack web applications using <b>Java Spring Boot</b> (REST API backend) and <b>React/Angular</b> (frontend), delivering responsive interfaces and robust data flows for enterprise users.",
+        "Designed and maintained RESTful APIs integrating backend services with third-party platforms, improving cross-system data exchange reliability and reducing integration errors by <b>30%</b>.",
+        "Built reusable frontend components and implemented state management patterns, improving UI consistency and reducing development time across features by <b>25%</b>.",
+        "Worked with <b>PostgreSQL and MongoDB</b> to design efficient schemas, optimise queries, and improve data retrieval speed by 40% for high-traffic transactional workloads.",
+        "Implemented <b>JWT-based authentication and role-based access control (RBAC)</b> across full-stack features, ensuring secure data access at both API and UI layers.",
+        "Collaborated with UX designers, product owners, and QA engineers in <b>Agile/Scrum</b> sprints to deliver end-to-end features with high quality and on schedule.",
+        "Deployed applications on <b>AWS (EC2, S3)</b> with Docker containerisation; maintained Jenkins CI/CD pipelines, reducing deployment lead time by <b>35%</b>.",
+        "Wrote unit and end-to-end tests using <b>JUnit, Mockito, and Jest</b>, achieving 80%+ code coverage and maintaining stable releases across frontend and backend layers.",
+    ],
+    "skills": [
+        "<b>Backend</b>  –  Java 11/17, Spring Boot, Spring Cloud, REST APIs, Microservices, Spring Security.",
+        "<b>Frontend</b>  –  React, Angular, JavaScript (ES6+), HTML5, CSS3, TypeScript.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, MongoDB; query optimisation and data modelling.",
+        "<b>Cloud &amp; DevOps</b>  –  AWS (EC2, S3, Lambda), Docker, Kubernetes, Jenkins, CI/CD pipelines.",
+        "<b>Testing</b>  –  JUnit, Mockito, Jest, React Testing Library, TDD practices.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, code reviews, API design patterns.",
+        "<b>Tools &amp; IDEs</b>  –  IntelliJ IDEA, VS Code, Postman, Jira, Confluence.",
+    ],
+    "projects": [
+        ("Customer Portal – Full Stack Application (HCL Technologies)", [
+            "Developed a full-stack customer portal using Spring Boot (REST APIs) and Angular (frontend) supporting profile management, transaction history, and real-time notification features for 10,000+ users.",
+            "Implemented JWT authentication and role-based access control ensuring secure, auditable access to sensitive account data across all portal features.",
+            "Deployed the application on AWS EC2 with Docker containerisation; maintained CI/CD pipeline with Jenkins, automating build and deployment to staging and production.",
+        ]),
+        ("Internal Admin Dashboard (HCL Technologies)", [
+            "Built a responsive admin dashboard with React and Spring Boot providing real-time data views via REST APIs, reducing operational reporting time by 40% for internal teams.",
+            "Designed reusable component library and state management patterns, improving UI consistency and reducing frontend development effort for new modules.",
+        ]),
+    ],
+},
+"python": {
+    "bullets": [
+        "Developed <b>Python-based data pipelines and ETL scripts</b> using pandas, SQLAlchemy, and PySpark to automate data extraction and transformation, reducing manual processing time by <b>45%</b>.",
+        "Built <b>RESTful APIs using Flask and FastAPI</b>, integrating them with AWS services and PostgreSQL, enabling efficient data exchange between internal tools and third-party platforms.",
+        "Designed and maintained backend services in <b>Java and Spring Boot</b>, contributing to a 25% improvement in system response time and supporting clean data pipelines for downstream consumers.",
+        "Worked with <b>PostgreSQL, MySQL, and MongoDB</b> to optimise queries and improve data retrieval efficiency by 40% for analytics-driven workloads.",
+        "Implemented <b>automated testing frameworks using pytest</b> and unittest, achieving 80%+ code coverage and significantly reducing regression defects in Python-based services.",
+        "Deployed Python services on <b>AWS (EC2, Lambda, S3)</b> using Docker, and managed batch job scheduling with Jenkins and cron for reliable daily processing.",
+        "Collaborated with data scientists and analysts in an <b>Agile/Scrum</b> environment to translate data requirements into robust, production-ready Python pipelines and APIs.",
+        "Wrote clean, modular Python code following <b>PEP8 standards</b>, enabling maintainability and easy onboarding of new developers across the team.",
+    ],
+    "skills": [
+        "<b>Programming Languages</b>  –  Python (advanced), Java, SQL, Bash scripting.",
+        "<b>Python Ecosystem</b>  –  pandas, NumPy, Flask, FastAPI, SQLAlchemy, PySpark, pytest.",
+        "<b>Backend &amp; APIs</b>  –  Spring Boot, REST API design, microservices, API integration.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, MongoDB; query optimisation and schema design.",
+        "<b>Cloud &amp; DevOps</b>  –  AWS (EC2, S3, Lambda), Docker, Jenkins, CI/CD pipelines.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, TDD, code reviews, clean code principles.",
+        "<b>Tools</b>  –  VS Code, Jupyter Notebook, Postman, PyCharm, IntelliJ IDEA.",
+    ],
+    "projects": [
+        ("Automated ETL Data Pipeline (HCL Technologies)", [
+            "Built a Python-based ETL pipeline using pandas and SQLAlchemy to automate data extraction from multiple sources and load into PostgreSQL, reducing manual effort by 45%.",
+            "Containerised the pipeline with Docker and scheduled automated daily runs via Jenkins, with error alerting and retry logic ensuring reliable and consistent data delivery.",
+        ]),
+        ("Internal REST API Service (HCL Technologies)", [
+            "Developed a FastAPI-based REST service exposing processed internal data to downstream teams; integrated with AWS S3 for file storage and PostgreSQL for persistent data management.",
+            "Implemented request validation, exception handling, and structured logging, reducing API error rates and improving observability for the operations team.",
+        ]),
+    ],
+},
+"data_analyst": {
+    "bullets": [
+        "Designed and maintained <b>interactive dashboards and reports</b> using SQL, Python, and Power BI, enabling business stakeholders to track KPIs and make data-driven decisions in real time.",
+        "Performed end-to-end data analysis including data extraction, cleaning, statistical analysis, and visualisation using <b>Python (pandas, matplotlib, seaborn)</b>, reducing reporting cycle time by <b>30%</b>.",
+        "Developed and optimised complex <b>SQL queries and stored procedures</b> in PostgreSQL and MySQL to support analytical reporting workloads, improving query execution speed by 40%.",
+        "Built <b>automated data validation and reconciliation scripts</b> in Python, replacing manual weekly QA processes and reducing data quality incidents by 35%.",
+        "Collaborated closely with business stakeholders and engineering teams in an <b>Agile/Scrum</b> environment to define metrics, validate data sources, and deliver analytical solutions.",
+        "Worked with <b>PostgreSQL and MongoDB</b> to design efficient data models supporting high-volume analytical queries, applying indexing and partitioning strategies.",
+        "Maintained <b>backend services in Java and Spring Boot</b> that powered data ingestion and transformation pipelines, enabling cleaner and more reliable data for downstream analysis.",
+        "Documented analytical methodologies and KPI definitions, establishing a <b>governed data layer</b> enabling controlled self-service analytics across business functions.",
+    ],
+    "skills": [
+        "<b>Analytics &amp; Visualisation</b>  –  Python (pandas, NumPy, matplotlib, seaborn), Power BI, Tableau, Advanced Excel.",
+        "<b>SQL &amp; Databases</b>  –  PostgreSQL, MySQL, MongoDB; complex queries, stored procedures, indexing, and performance tuning.",
+        "<b>Programming Languages</b>  –  Python, SQL, Java, Bash scripting.",
+        "<b>Data Engineering</b>  –  ETL pipelines, data cleaning, transformation, and validation frameworks.",
+        "<b>Backend</b>  –  Java Spring Boot, REST APIs, data ingestion services.",
+        "<b>Cloud &amp; Tools</b>  –  AWS (S3, Redshift), Docker, Jenkins, Git, Jira.",
+        "<b>Development Practices</b>  –  Agile/Scrum, data governance, documentation, statistical analysis.",
+    ],
+    "projects": [
+        ("Business Performance Dashboard (HCL Technologies)", [
+            "Designed and built an interactive Power BI dashboard consolidating data from multiple SQL sources, enabling stakeholders to monitor KPIs in real time and reduce report generation time by 30%.",
+            "Automated data extraction and transformation using Python and SQL stored procedures, eliminating 10+ hours of manual weekly reporting and improving data accuracy.",
+        ]),
+        ("Customer Data Quality & Reporting Pipeline (HCL Technologies)", [
+            "Performed exploratory data analysis and statistical profiling on customer transaction datasets (1M+ records) using Python and SQL to identify data quality issues and surface actionable insights.",
+            "Built reusable data validation and cleaning scripts, reducing downstream analysis errors by 25% and improving report reliability consumed by senior leadership.",
+        ]),
+    ],
+},
+"data_scientist": {
+    "bullets": [
+        "Built and deployed <b>machine learning models</b> (classification, regression, clustering) using Python (scikit-learn, pandas, NumPy), generating predictive insights from large structured datasets.",
+        "Designed <b>feature engineering and data preprocessing pipelines</b>, improving model accuracy by 18% through structured experimentation and cross-validation techniques.",
+        "Developed a <b>customer churn prediction model</b> using gradient boosting and logistic regression, achieving 87% AUC and enabling proactive targeting of at-risk customer segments.",
+        "Built and orchestrated <b>model training and evaluation pipelines</b> with MLflow experiment tracking, ensuring reproducibility and version control across model iterations.",
+        "Integrated <b>model outputs into backend services</b> via REST APIs built in Java Spring Boot, enabling real-time inference and decision-support for operational teams.",
+        "Worked with <b>PostgreSQL and MongoDB</b> to design efficient data extraction workflows and optimise pipeline throughput by 40% for large-scale data science projects.",
+        "Collaborated with data engineers, analysts, and business stakeholders in <b>Agile/Scrum</b> sprints to translate business problems into machine learning solutions.",
+        "Communicated model performance and business impact clearly to <b>technical and non-technical audiences</b>, driving informed adoption of data science recommendations.",
+    ],
+    "skills": [
+        "<b>Machine Learning</b>  –  scikit-learn, regression, classification, clustering, gradient boosting, model evaluation.",
+        "<b>Programming Languages</b>  –  Python (advanced), SQL, Java, R.",
+        "<b>Python Ecosystem</b>  –  pandas, NumPy, matplotlib, seaborn, Flask, FastAPI.",
+        "<b>MLOps &amp; Experimentation</b>  –  MLflow, model versioning, experiment tracking, cross-validation.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, MongoDB; query optimisation and data modelling.",
+        "<b>Cloud &amp; DevOps</b>  –  AWS (S3, SageMaker), Docker, Jenkins, CI/CD pipelines.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, statistical analysis, data storytelling.",
+    ],
+    "projects": [
+        ("Predictive Customer Churn Model (HCL Technologies)", [
+            "Developed a gradient boosting model to predict customer churn with 87% AUC, enabling proactive identification of at-risk segments and reducing churn-related revenue loss.",
+            "Built end-to-end feature engineering pipelines using pandas and NumPy, reducing model training time by 35% and improving reproducibility across experiments.",
+            "Deployed the model as a REST API using Flask on AWS EC2, enabling real-time inference integrated with downstream CRM and operational decision tools.",
+        ]),
+        ("Time-Series Demand Forecasting (HCL Technologies)", [
+            "Built a time-series forecasting model using Prophet and scikit-learn to predict transaction volumes four weeks in advance, enabling operations teams to plan resource capacity proactively.",
+            "Automated model retraining with a Jenkins CI/CD pipeline and tracked artefacts in MLflow, ensuring full reproducibility and version control of model outputs.",
+        ]),
+    ],
+},
+"ai_ml": {
+    "bullets": [
+        "Developed and deployed <b>machine learning and deep learning models</b> using Python (TensorFlow, PyTorch, scikit-learn), improving prediction accuracy by 22% on production datasets.",
+        "Built and optimised <b>MLOps pipelines</b> integrating model training, versioning, and deployment on AWS SageMaker with Docker and MLflow, reducing model release cycles from weeks to days.",
+        "Designed <b>NLP text classification pipelines</b> using Hugging Face Transformers, automating support ticket categorisation and reducing manual triage effort by 60%.",
+        "Developed and maintained <b>backend services in Java and Spring Boot</b> to expose ML model outputs via RESTful APIs, enabling real-time inference for downstream enterprise applications.",
+        "Worked with <b>PostgreSQL and MongoDB</b> to design efficient data pipelines supporting model training and evaluation, handling millions of records with optimised query performance.",
+        "Implemented <b>feature stores and data versioning</b> practices, ensuring consistency between training and production datasets and improving model reliability across deployment cycles.",
+        "Collaborated with product teams and data engineers in an <b>Agile/Scrum</b> environment to scope, build, and ship AI/ML features with measurable business impact.",
+        "Monitored model performance in production using <b>drift detection and automated alerting</b>, enabling timely retraining and maintaining model quality over time.",
+    ],
+    "skills": [
+        "<b>AI &amp; Machine Learning</b>  –  TensorFlow, PyTorch, scikit-learn, Hugging Face Transformers, LLMs.",
+        "<b>MLOps</b>  –  AWS SageMaker, MLflow, model versioning, drift detection, automated retraining.",
+        "<b>Programming Languages</b>  –  Python (advanced), Java, SQL.",
+        "<b>Python Ecosystem</b>  –  pandas, NumPy, Flask, FastAPI, feature engineering.",
+        "<b>Backend &amp; APIs</b>  –  Java Spring Boot, REST APIs, microservices, API design.",
+        "<b>Cloud &amp; DevOps</b>  –  AWS (EC2, S3, Lambda, SageMaker), Docker, Kubernetes, Jenkins, CI/CD.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, experiment tracking, statistical analysis.",
+    ],
+    "projects": [
+        ("ML-Powered Recommendation Engine (HCL Technologies)", [
+            "Developed a collaborative filtering recommendation engine using Python and scikit-learn, improving user engagement metrics by 18% in A/B testing across 50,000+ active users.",
+            "Deployed the model as a real-time REST API on AWS SageMaker, achieving sub-100ms inference latency integrated with the core Java Spring Boot application backend.",
+            "Implemented automated model retraining triggered by data drift thresholds, ensuring recommendation quality was maintained as user behaviour patterns evolved.",
+        ]),
+        ("NLP Text Classification Pipeline (HCL Technologies)", [
+            "Built an NLP pipeline using Hugging Face Transformers and PyTorch to classify support tickets automatically, reducing manual triage time by 60% and improving SLA compliance.",
+            "Integrated the fine-tuned model into a Spring Boot microservice via REST API, enabling seamless consumption by downstream Java applications.",
+        ]),
+    ],
+},
+"it_support": {
+    "bullets": [
+        "Provided <b>Level 1 and Level 2 IT support</b> for 300+ end users across hardware, software, and network issues, maintaining an average resolution time under 2 hours and achieving <b>95% SLA compliance</b>.",
+        "Managed user accounts, access provisioning, and endpoint configurations using <b>Active Directory, Azure AD</b>, and ServiceNow, ensuring secure and compliant IT operations.",
+        "Diagnosed and resolved complex issues across <b>Windows Server, Linux, and macOS</b> environments, reducing recurring incident rates by 25% through root cause analysis and documentation.",
+        "Developed <b>Java and Python automation scripts</b> to streamline common IT workflows including password resets and account provisioning, reducing Level 1 ticket volume by 35%.",
+        "Maintained and optimised <b>network infrastructure</b> including DNS, DHCP, VPN, and LAN/WAN configurations, supporting reliable connectivity for distributed and remote users.",
+        "Administered <b>Microsoft 365, SharePoint, and Teams</b> environments, supporting collaboration tools, licence management, and endpoint security policy enforcement.",
+        "Worked with <b>PostgreSQL and MySQL databases</b> to run diagnostic queries, support internal tooling, and maintain data integrity across IT operations platforms.",
+        "Contributed to <b>CI/CD pipeline maintenance</b> and backend deployments using Java Spring Boot, bridging IT operations and software engineering to support DevOps practices.",
+    ],
+    "skills": [
+        "<b>IT Support</b>  –  Level 1/2 support, Active Directory, Azure AD, ServiceNow, ITIL, SLA management.",
+        "<b>Operating Systems</b>  –  Windows Server (2016/2019), Linux (Ubuntu, CentOS), macOS.",
+        "<b>Networking</b>  –  TCP/IP, DNS, DHCP, VPN, LAN/WAN, network diagnostics and troubleshooting.",
+        "<b>Cloud &amp; Productivity</b>  –  Microsoft 365, Azure, Teams, SharePoint, AWS (EC2, S3).",
+        "<b>Programming &amp; Scripting</b>  –  Java, Python, Bash; automation of IT workflows and tooling.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL; diagnostic queries and data integrity checks.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, Jira, documentation, CI/CD pipeline support.",
+    ],
+    "projects": [
+        ("IT Helpdesk Automation Tool (HCL Technologies)", [
+            "Developed a Java and Python-based automation tool integrated with ServiceNow via REST API to auto-resolve common Level 1 tickets including password resets and account unlocks, reducing ticket volume by 35%.",
+            "Designed automated SLA monitoring and escalation workflows, alerting engineers before breach thresholds and improving overall SLA compliance from 88% to 95%.",
+        ]),
+        ("Endpoint Monitoring Dashboard (HCL Technologies)", [
+            "Built an internal monitoring dashboard using Python and PostgreSQL to track endpoint health and uptime across 200+ devices, alerting the IT team to issues proactively.",
+            "Configured automated health-check scripts with Bash and Cron, reducing undetected outage duration by 50% and improving visibility of the endpoint estate.",
+        ]),
+    ],
+},
+}
+
+def get_role_key(category):
+    cat = category.lower()
+    if "java" in cat or "backend" in cat:         return "java"
+    if "python" in cat:                            return "python"
+    if "data analyst" in cat:                      return "data_analyst"
+    if "data scientist" in cat:                    return "data_scientist"
+    if "ai" in cat or "ml" in cat:                 return "ai_ml"
+    if "it support" in cat or "support" in cat:    return "it_support"
+    if "full stack" in cat:                        return "full_stack"
+    return "java"
+
+def make_resume(filename, exp_bullets, skills, proj_list, certs):
+    doc = SimpleDocTemplate(filename, pagesize=A4,
+        leftMargin=1.8*cm, rightMargin=1.8*cm,
+        topMargin=1.5*cm, bottomMargin=1.5*cm)
+    W = doc.width
+
+    name_s      = ParagraphStyle("name",  fontName="Times-Bold",   fontSize=24, textColor=BLACK, alignment=TA_CENTER, spaceAfter=5, leading=28)
+    contact_s   = ParagraphStyle("con",   fontName="Times-Roman",  fontSize=10.5, textColor=BLACK, alignment=TA_CENTER, spaceAfter=2, leading=14)
+    sec_s       = ParagraphStyle("sec",   fontName="Times-Bold",   fontSize=13, textColor=BLACK, alignment=TA_CENTER, spaceAfter=5, spaceBefore=10, leading=16)
+    job_left_s  = ParagraphStyle("jl",    fontName="Times-Bold",   fontSize=11, textColor=BLACK, alignment=TA_LEFT,   leading=14)
+    job_right_s = ParagraphStyle("jr",    fontName="Times-Bold",   fontSize=11, textColor=BLACK, alignment=TA_RIGHT,  leading=14)
+    bullet_s    = ParagraphStyle("bul",   fontName="Times-Roman",  fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, leading=14.5, spaceAfter=3, leftIndent=15, firstLineIndent=-11)
+    skill_s     = ParagraphStyle("sk",    fontName="Times-Roman",  fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, leading=14.5, spaceAfter=2)
+    proj_s      = ParagraphStyle("pt",    fontName="Times-Bold",   fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, spaceAfter=2, spaceBefore=4, leading=14)
+    cert_s      = ParagraphStyle("cert",  fontName="Times-Roman",  fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, leading=14.5, spaceAfter=3, leftIndent=15, firstLineIndent=-11)
+
+    def section_header(title):
+        return [Spacer(1, 4), Paragraph(f"<u>{title}</u>", sec_s)]
+
+    def role_header(left_text, right_text):
+        tbl = Table([[Paragraph(left_text, job_left_s), Paragraph(right_text, job_right_s)]],
+                    colWidths=[W * 0.68, W * 0.32])
+        tbl.setStyle(TableStyle([
+            ("VALIGN",        (0,0),(-1,-1),"MIDDLE"),
+            ("LEFTPADDING",   (0,0),(-1,-1),0), ("RIGHTPADDING",(0,0),(-1,-1),0),
+            ("TOPPADDING",    (0,0),(-1,-1),2), ("BOTTOMPADDING",(0,0),(-1,-1),4),
+            ("LINEBELOW",     (0,0),(-1, 0),1.0, BLACK),
+        ]))
+        return tbl
+
+    story = []
+    story.append(Paragraph("HARIRAMAKRRISHNAN RAMACHANDRAN", name_s))
+    story.append(Paragraph(
+        '+353 899706156  |  hariramakrrish@gmail.com  |  '
+        '<a href="https://www.linkedin.com/in/hariramakrrish/" color="#0070C0"><u>LinkedIn</u></a>'
+        '  |  <b>Stamp 1G</b> — Eligible to work full-time in Ireland', contact_s))
+
+    story += section_header("PROFESSIONAL EXPERIENCE")
+    story.append(role_header("SOFTWARE ENGINEER  –  HCL Technologies  |  Chennai, India", "09/2021 – 01/2025  (3.5 Years)"))
+    story.append(Spacer(1, 5))
+    for b in exp_bullets:
+        story.append(Paragraph(f"•  {b}", bullet_s))
+
+    story += section_header("SKILLS")
+    story.append(Spacer(1, 2))
+    for sk in skills:
+        story.append(Paragraph(sk, skill_s))
+
+    story += section_header("EDUCATION AND TRAINING")
+    story.append(Spacer(1, 3))
+    story.append(role_header("MASTER OF SCIENCE in Data Analytics  –  <b>National College of Ireland</b>, Dublin", "02/2026"))
+    story.append(Spacer(1, 6))
+    story.append(role_header("BACHELOR OF ENGINEERING in Computer Science  –  <b>SNS College of Technology</b>, Coimbatore, India", "01/2021"))
+    story.append(Spacer(1, 4))
+
+    story += section_header("PROJECTS")
+    story.append(Spacer(1, 2))
+    for ptitle, pbullets in proj_list:
+        story.append(Paragraph(ptitle, proj_s))
+        for b in pbullets:
+            story.append(Paragraph(f"•  {b}", bullet_s))
+
+    story += section_header("ACHIEVEMENTS & CERTIFICATIONS")
+    story.append(Spacer(1, 2))
+    for c in certs:
+        story.append(Paragraph(f"•  {c}", cert_s))
+
+    doc.build(story)
+
+def generate_for_jobs(jobs_to_generate=None):
+    """Generate PDFs. If jobs_to_generate is None, process all jobs in jobs.json."""
+    if not os.path.exists(JOBS_FILE):
+        print("No jobs.json found — run search_jobs.py first.")
+        return
+
+    with open(JOBS_FILE) as f:
+        all_jobs = json.load(f)
+
+    if jobs_to_generate is not None:
+        targets = jobs_to_generate
+    else:
+        targets = all_jobs
+
+    generated = skipped = errors = 0
+    for job in targets:
+        fname = os.path.join(RESUME_DIR, job["resume"])
+        if os.path.exists(fname):
+            skipped += 1
+            continue
+        rk   = get_role_key(job.get("category", "java"))
+        data = CONTENT[rk]
+        try:
+            make_resume(fname, data["bullets"], data["skills"], data["projects"], CERTS)
+            print(f"  ✓  {job['company']} — {job['title']}")
+            generated += 1
+        except Exception as e:
+            print(f"  ✗  {job['company']} — {job['title']}  ERROR: {e}")
+            errors += 1
+
+    print(f"\n✅  Generated: {generated}  |  Skipped (exists): {skipped}  |  Errors: {errors}")
+
+if __name__ == "__main__":
+    generate_for_jobs()
