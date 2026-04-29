@@ -153,6 +153,15 @@
   </table>
 </div>
 
+<style>
+  /* Sync toast */
+  #sync-toast { position:fixed; bottom:24px; right:24px; padding:10px 18px; border-radius:8px; font-size:.85rem; font-weight:500; opacity:0; transition:opacity .3s; pointer-events:none; z-index:999; }
+  #sync-toast.show { opacity:1; }
+  #sync-toast.ok   { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
+  #sync-toast.err  { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
+</style>
+<div id="sync-toast"></div>
+
 <script>
 const CAT_COLORS = {
   "Java / Backend":  { bg:"#dbeafe", fg:"#1d4ed8" },
@@ -167,22 +176,30 @@ const CAT_COLORS = {
 const STATUS_OPTS = ["Not Applied","Applied","Interviewing","Rejected","No Longer Available"];
 
 let ALL_JOBS = [];
-let statuses = {};   // persisted in localStorage
 
-function loadStatuses() {
-  try { statuses = JSON.parse(localStorage.getItem("job_statuses") || "{}"); } catch(e) {}
+// pending = changes made locally but not yet confirmed by the API
+// jobs.json is the cross-device source of truth; pending overrides locally
+let pending = {};
+try { pending = JSON.parse(localStorage.getItem("pending_statuses") || "{}"); } catch(e) {}
+
+function getStatus(job) {
+  return pending[job.id] ?? job.status ?? "Not Applied";
 }
-function saveStatus(id, val) {
-  statuses[id] = val;
-  localStorage.setItem("job_statuses", JSON.stringify(statuses));
+
+let toastTimer;
+function showToast(msg, type) {
+  const t = document.getElementById("sync-toast");
+  t.textContent = msg; t.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = "", 2500);
 }
 
 function renderStats(jobs) {
   const today = new Date().toISOString().slice(0,10);
   document.getElementById("s-total").textContent    = jobs.length;
-  document.getElementById("s-applied").textContent  = jobs.filter(j => (statuses[j.id]||j.status)==="Applied").length;
-  document.getElementById("s-interview").textContent= jobs.filter(j => (statuses[j.id]||j.status)==="Interviewing").length;
-  document.getElementById("s-rejected").textContent = jobs.filter(j => (statuses[j.id]||j.status)==="Rejected").length;
+  document.getElementById("s-applied").textContent  = jobs.filter(j => getStatus(j)==="Applied").length;
+  document.getElementById("s-interview").textContent= jobs.filter(j => getStatus(j)==="Interviewing").length;
+  document.getElementById("s-rejected").textContent = jobs.filter(j => getStatus(j)==="Rejected").length;
   document.getElementById("s-today").textContent    = jobs.filter(j => j.added === today).length;
 }
 
@@ -191,7 +208,7 @@ function renderTable(jobs) {
   if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No jobs match your filters.</td></tr>'; return; }
   const cat = c => { const x = CAT_COLORS[c]||{bg:"#f1f5f9",fg:"#374151"}; return `background:${x.bg};color:${x.fg}`; };
   tbody.innerHTML = jobs.map((j,i) => {
-    const st  = statuses[j.id] || j.status || "Not Applied";
+    const st  = getStatus(j);
     const stc = st.toLowerCase().replace(/\s+/g,"-");
     const opts= STATUS_OPTS.map(o=>`<option${o===st?" selected":""}>${o}</option>`).join("");
     const src = j.source==="Indeed"
@@ -215,13 +232,37 @@ function renderTable(jobs) {
   renderStats(jobs);
 }
 
-function changeStatus(id, sel) {
-  const val  = sel.value;
-  const stc  = val.toLowerCase().replace(/\s+/g,"-");
+async function changeStatus(id, sel) {
+  const val = sel.value;
+  const stc = val.toLowerCase().replace(/\s+/g,"-");
   sel.className = `status-sel status-${stc}`;
   sel.closest("tr").dataset.status = val;
-  saveStatus(id, val);
+
+  // Save locally so UI is instant and survives refresh if API is slow
+  pending[id] = val;
+  localStorage.setItem("pending_statuses", JSON.stringify(pending));
   renderStats(ALL_JOBS);
+
+  // Persist to GitHub via serverless function
+  try {
+    const r = await fetch("/api/update-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: val }),
+    });
+    if (r.ok) {
+      // Confirmed — remove from pending; jobs.json is now the truth
+      delete pending[id];
+      localStorage.setItem("pending_statuses", JSON.stringify(pending));
+      showToast("✓ Status saved", "ok");
+    } else {
+      const e = await r.json().catch(()=>({}));
+      showToast("⚠ Sync failed — change kept locally", "err");
+      console.warn("update-status error", e);
+    }
+  } catch(e) {
+    showToast("⚠ Offline — change kept locally", "err");
+  }
 }
 
 function applyFilters() {
@@ -231,13 +272,11 @@ function applyFilters() {
   const catF   = catEl  ? catEl.dataset.cat  : "all";
   const stF    = stEl   ? stEl.dataset.status: "all";
   const rows   = document.querySelectorAll("#jobs-body tr[data-id]");
-  let visible  = 0;
   rows.forEach(r => {
     const matchCat = catF==="all" || r.dataset.cat===catF;
     const matchSt  = stF==="all"  || r.dataset.status===stF;
     const matchQ   = !q || r.textContent.toLowerCase().includes(q);
     r.style.display = (matchCat && matchSt && matchQ) ? "" : "none";
-    if (matchCat && matchSt && matchQ) visible++;
   });
 }
 
@@ -258,8 +297,7 @@ document.querySelectorAll(".chip[data-status]").forEach(c => {
 });
 document.getElementById("search").addEventListener("input", applyFilters);
 
-// Load data
-loadStatuses();
+// Load data — jobs.json is the cross-device source of truth for statuses
 fetch("data/jobs.json")
   .then(r => r.json())
   .then(jobs => {
