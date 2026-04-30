@@ -14,7 +14,10 @@ module.exports = async function handler(req, res) {
   if (!id || !status) return res.status(400).json({ error: 'Missing id or status' });
 
   const token = process.env.GITHUB_TOKEN;
-  if (!token) return res.status(500).json({ error: 'GITHUB_TOKEN not configured' });
+  if (!token) {
+    console.error('GITHUB_TOKEN env var is not set in Vercel project settings');
+    return res.status(500).json({ error: 'GITHUB_TOKEN not configured — add it in Vercel → Settings → Environment Variables' });
+  }
 
   const owner = 'hariramakrrish';
   const repo  = 'Ireland-jobs-tracker';
