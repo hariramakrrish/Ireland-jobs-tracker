@@ -163,6 +163,46 @@
 <div id="sync-toast"></div>
 
 <script>
+// Token injected at build time — never committed to git
+const GH_TOKEN = '__GITHUB_TOKEN_PLACEHOLDER__';
+const GH_OWNER = 'hariramakrrish';
+const GH_REPO  = 'Ireland-jobs-tracker';
+const GH_PATH  = 'web/data/jobs.json';
+
+async function syncStatusToGitHub(jobId, status, allJobs) {
+  if (!GH_TOKEN || GH_TOKEN === '__GITHUB_TOKEN_PLACEHOLDER__') return false;
+  const base = 'https://api.github.com';
+  const hdrs = {
+    Authorization: `Bearer ${GH_TOKEN}`,
+    Accept: 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+  };
+  try {
+    const getRes = await fetch(`${base}/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, { headers: hdrs });
+    if (!getRes.ok) throw new Error(`GET ${getRes.status}`);
+    const fileData = await getRes.json();
+    const jobs = JSON.parse(atob(fileData.content.replace(/\n/g, '')));
+    const job  = jobs.find(j => j.id === jobId);
+    if (!job) throw new Error('job not found');
+    job.status = status;
+    const putRes = await fetch(`${base}/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, {
+      method: 'PUT', headers: hdrs,
+      body: JSON.stringify({
+        message: `chore: status ${jobId} → ${status}`,
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(jobs, null, 2)))),
+        sha: fileData.sha,
+      }),
+    });
+    if (!putRes.ok) { const e = await putRes.json(); throw new Error(e.message); }
+    return true;
+  } catch(e) {
+    console.error('GitHub sync error:', e);
+    return false;
+  }
+}
+</script>
+
+<script>
 const CAT_COLORS = {
   "Java / Backend":  { bg:"#dbeafe", fg:"#1d4ed8" },
   "Python":          { bg:"#dcfce7", fg:"#15803d" },
@@ -238,30 +278,19 @@ async function changeStatus(id, sel) {
   sel.className = `status-sel status-${stc}`;
   sel.closest("tr").dataset.status = val;
 
-  // Save locally so UI is instant and survives refresh if API is slow
+  // Save locally immediately so UI is snappy
   pending[id] = val;
   localStorage.setItem("pending_statuses", JSON.stringify(pending));
   renderStats(ALL_JOBS);
 
-  // Persist to GitHub via serverless function
-  try {
-    const r = await fetch("/api/update-status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: val }),
-    });
-    if (r.ok) {
-      // Confirmed — remove from pending; jobs.json is now the truth
-      delete pending[id];
-      localStorage.setItem("pending_statuses", JSON.stringify(pending));
-      showToast("✓ Status saved", "ok");
-    } else {
-      const e = await r.json().catch(()=>({}));
-      showToast("⚠ Sync failed — change kept locally", "err");
-      console.warn("update-status error", e);
-    }
-  } catch(e) {
-    showToast("⚠ Offline — change kept locally", "err");
+  // Sync directly to GitHub API (token injected at build time)
+  const ok = await syncStatusToGitHub(id, val, ALL_JOBS);
+  if (ok) {
+    delete pending[id];
+    localStorage.setItem("pending_statuses", JSON.stringify(pending));
+    showToast("✓ Status saved", "ok");
+  } else {
+    showToast("⚠ Kept locally — will sync when online", "err");
   }
 }
 

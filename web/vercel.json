@@ -1,14 +1,7 @@
 {
   "version": 2,
   "name": "hari-job-tracker",
-  "builds": [
-    { "src": "api/*.js", "use": "@vercel/node" },
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "data/**", "use": "@vercel/static" },
-    { "src": "resumes/**", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)", "dest": "/$1" }
-  ]
+  "buildCommand": "node build.js",
+  "outputDirectory": "dist",
+  "installCommand": "echo no-install"
 }
