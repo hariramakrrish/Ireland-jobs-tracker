@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Search for Ireland jobs across LinkedIn, Indeed (ie), IrishJobs.ie and Jobs.ie.
-Uses Apify RAG browser for LinkedIn/Indeed/IrishJobs, and Apify Indeed scraper actor
-for structured Indeed results.  Deduplicates against existing jobs.json.
+Search for Ireland jobs across LinkedIn, Indeed (ie), IrishJobs.ie, Jobs.ie,
+and direct company career pages (Microsoft, Google, Stripe, Amazon, etc.).
+Uses Apify RAG browser for scraping, and Apify Indeed scraper for structured results.
+Deduplicates against existing jobs.json.
 """
 import os, re, json, hashlib, time
 from datetime import datetime
@@ -222,6 +223,68 @@ def search_jobsie(client, query, max_results=8):
     print(f"        Jobs.ie  → {len(jobs)} results")
     return jobs
 
+# ── Company career page scraper ────────────────────────────────────────────────
+# Each entry: (company_name, url, category)
+COMPANY_CAREER_PAGES = [
+    ("Microsoft",   "https://careers.microsoft.com/v2/global/en/locations/dublin.html",               "Full Stack / General SWE"),
+    ("Google",      "https://www.google.com/about/careers/applications/jobs/results?location=Dublin,+Ireland&experience=EARLY&experience=MID", "Full Stack / General SWE"),
+    ("Stripe",      "https://stripe.com/jobs/search?location=Dublin&teams=engineering",               "Java / Backend"),
+    ("Amazon",      "https://www.amazon.jobs/en/search?base_query=software+engineer&loc_query=Dublin%2C+Ireland", "Full Stack / General SWE"),
+    ("Workday",     "https://www.workday.com/en-us/company/careers/overview.html?q=software+engineer&location=Dublin", "Full Stack / General SWE"),
+    ("HubSpot",     "https://www.hubspot.com/careers/jobs?hubs_content=www.hubspot.com%2Fcareers&q=software+engineer&country=Ireland", "Full Stack / General SWE"),
+    ("Salesforce",  "https://salesforce.wd12.myworkdayjobs.com/en-US/External_Career_Site?q=software+engineer&locationCountry=IE", "Full Stack / General SWE"),
+    ("MongoDB",     "https://www.mongodb.com/careers/search?department=Engineering&location=Dublin%2C+Ireland", "Full Stack / General SWE"),
+    ("Zendesk",     "https://jobs.zendesk.com/us/en/search-results?keywords=software+engineer&location=Dublin", "Full Stack / General SWE"),
+    ("Intercom",    "https://www.intercom.com/careers/jobs?search=engineer&location=Dublin",          "Full Stack / General SWE"),
+    ("Gong",        "https://www.gong.io/careers/#open-positions",                                    "Full Stack / General SWE"),
+    ("Fidelity",    "https://www.fidelityinternational.com/careers/",                                 "Java / Backend"),
+    ("Arista",      "https://www.arista.com/en/careers",                                              "Full Stack / General SWE"),
+    ("Bentley",     "https://www.bentley.com/company/careers/?search=software+engineer&location=Dublin", "Full Stack / General SWE"),
+    ("Canonical",   "https://canonical.com/careers/all?location=Ireland",                             "Python / Data / ML"),
+    ("Etsy",        "https://careers.etsy.com/?country=IE",                                           "Java / Backend"),
+]
+
+def parse_company_page(text, company, max_results=10):
+    """
+    Parse raw text/markdown from a company career page to extract Dublin/Ireland job listings.
+    Looks for title + location patterns.
+    """
+    jobs, seen = [], set()
+    ireland_re = re.compile(r"\b(Dublin|Ireland|Cork|Galway|Limerick|Remote)\b", re.I)
+    title_re   = re.compile(
+        r"(?:^|\n)([A-Z][A-Za-z0-9 ,./\-&'()]{5,79})"
+        r"(?:\n|\s*[-–·|]\s*)"
+        r"(?:[^\n]*(?:Dublin|Ireland|Remote)[^\n]*)",
+        re.MULTILINE
+    )
+    for m in title_re.finditer(text):
+        title = m.group(1).strip().rstrip("-–·|•").strip()
+        if not (5 < len(title) < 90):
+            continue
+        # Filter out navigation elements and generic headings
+        skip_words = re.compile(
+            r"^(Apply|View|Learn|Read|See|Sign|Join|Home|About|Contact|Benefits|Culture|Login"
+            r"|Life at|Jobs in|Search|Filter|Careers|Explore|Skip|Showing|Sort|Page)\b",
+            re.I
+        )
+        if skip_words.match(title):
+            continue
+        key = f"{title.lower()[:60]}_{company.lower()[:30]}"
+        if key not in seen and is_experience_appropriate(title):
+            seen.add(key)
+            jobs.append({"title": title, "company": company, "location": "Dublin, Ireland", "source": f"{company} Careers"})
+        if len(jobs) >= max_results:
+            break
+    return jobs
+
+def search_company_careers(client, company, url, category, max_results=10):
+    """Scrape a company's own career page for Dublin/Ireland roles."""
+    print(f"    🏢  {company} careers page...")
+    text = rag_fetch(client, url, timeout=90)
+    jobs = parse_company_page(text, company, max_results)
+    print(f"        {company} → {len(jobs)} results")
+    return jobs, category
+
 def parse_generic_text(text, max_results, source_name):
     """Generic parser that works across IrishJobs, Jobs.ie and similar boards."""
     jobs, seen = [], set()
@@ -346,6 +409,25 @@ def main():
                     existing_ids.add(jid)
                     next_num += 1
                     print(f"        ✓  [{r.get('source','?')}] {r['title']} @ {r['company']}")
+
+    # ── Company career pages ──────────────────────────────────────────────────
+    print("\n\n🏢  Scraping company career pages...")
+    for (company, url, cat) in COMPANY_CAREER_PAGES:
+        try:
+            results, category = search_company_careers(client, company, url, cat)
+            time.sleep(3)
+            for r in results:
+                if not is_experience_appropriate(r["title"]):
+                    continue
+                jid = job_id(r["company"], r["title"])
+                if jid not in existing_ids:
+                    entry = make_entry(r, category, next_num)
+                    new_jobs.append(entry)
+                    existing_ids.add(jid)
+                    next_num += 1
+                    print(f"        ✓  [{r.get('source','?')}] {r['title']} @ {r['company']}")
+        except Exception as e:
+            print(f"    ⚠  {company} career page failed: {e}")
 
     all_jobs = existing + new_jobs
     save_jobs(all_jobs)
