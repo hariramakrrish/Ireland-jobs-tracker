@@ -3,5 +3,11 @@
   "name": "hari-job-tracker",
   "buildCommand": "node build.js",
   "outputDirectory": "dist",
-  "installCommand": "echo no-install"
+  "installCommand": "echo no-install",
+  "functions": {
+    "api/*.js": { "runtime": "nodejs18.x" }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" }
+  ]
 }

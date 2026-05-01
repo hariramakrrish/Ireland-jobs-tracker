@@ -468,7 +468,7 @@ async function changeStatus(id, sel) {
   } else {
     // Only show the "kept locally" toast if the modal didn't open
     if (document.getElementById('pat-modal').classList.contains('open')) return;
-    showToast("⚠ Saved locally — enter token to sync", "err");
+    showToast("⚠ Saved locally — will retry on next change", "err");
   }
 }
 
