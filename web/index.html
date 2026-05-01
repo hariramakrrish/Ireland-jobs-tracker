@@ -212,9 +212,10 @@ const GH_REPO  = 'Ireland-jobs-tracker';
 const GH_PATH  = 'web/data/jobs.json';
 
 // Auto-seed PAT from Vercel build-time injection (build.js replaces the placeholder).
+// Only seeds if localStorage is empty — never overwrites a manually-entered token.
 (function() {
   const injected = '__GITHUB_TOKEN_PLACEHOLDER__';
-  if (injected && injected !== '__GITHUB_TOKEN_PLACEHOLDER__') {
+  if (injected && injected !== '__GITHUB_TOKEN_PLACEHOLDER__' && !localStorage.getItem('gh_pat')) {
     localStorage.setItem('gh_pat', injected);
   }
 })();
@@ -304,7 +305,13 @@ async function syncStatusToGitHub(jobId, status) {
   };
   try {
     const getRes = await fetch(`${base}/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, { headers: hdrs });
-    if (!getRes.ok) throw new Error(`GET ${getRes.status}`);
+    if (!getRes.ok) {
+      if (getRes.status === 401 || getRes.status === 403) {
+        setGHToken('');   // bad/expired token — wipe it so modal appears
+        openPATModal();
+      }
+      throw new Error(`GET ${getRes.status}`);
+    }
     const fileData = await getRes.json();
     const jobs     = JSON.parse(atob(fileData.content.replace(/\n/g, '')));
     const job      = jobs.find(j => j.id === jobId);
@@ -319,12 +326,12 @@ async function syncStatusToGitHub(jobId, status) {
       }),
     });
     if (!putRes.ok) {
-      const e = await putRes.json();
-      if (putRes.status === 401) {
-        setGHToken('');   // bad token — clear so modal shows on next attempt
+      const e = await putRes.json().catch(() => ({}));
+      if (putRes.status === 401 || putRes.status === 403) {
+        setGHToken('');   // bad/expired/wrong-scope token — wipe it
         openPATModal();
       }
-      throw new Error(e.message);
+      throw new Error(e.message || `PUT ${putRes.status}`);
     }
     return true;
   } catch(e) {
