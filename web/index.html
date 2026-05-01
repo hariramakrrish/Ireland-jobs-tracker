@@ -160,9 +160,8 @@
   #sync-toast.ok   { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
   #sync-toast.err  { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
 
-  /* Pending indicator (subtle, top-right) */
-  #pending-indicator { position:fixed; top:18px; right:20px; background:rgba(255,255,255,.15); color:#fff; border-radius:8px; padding:5px 12px; font-size:.78rem; display:none; z-index:900; pointer-events:none; }
-  #pending-indicator.show { display:block; }
+  /* Pending indicator — hidden, sync is silent */
+  #pending-indicator { display:none !important; }
 </style>
 <div id="sync-toast"></div>
 <div id="pending-indicator"></div>
