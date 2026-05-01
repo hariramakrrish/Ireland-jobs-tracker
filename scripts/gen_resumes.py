@@ -291,17 +291,95 @@ CONTENT = {
 },
 }
 
-def get_role_key(category):
-    cat = category.lower()
-    if "java" in cat or "backend" in cat:                   return "java"
-    if "python" in cat:                                     return "python"
-    if "data analyst" in cat:                               return "data_analyst"
-    if "data scientist" in cat:                             return "data_scientist"
-    if "ai" in cat or "ml" in cat:                          return "ai_ml"
+CONTENT["sre_devops"] = {
+    "bullets": [
+        "Managed <b>end-to-end production incident response</b> across mission-critical AWS-hosted enterprise applications, achieving average MTTR under 30 minutes and maintaining <b>99.9% system availability</b> against defined SLIs, SLOs, and SLA targets.",
+        "Performed <b>root cause analysis (RCA)</b> on P1/P2 production incidents using CloudWatch log analysis, distributed tracing, and query profiling, producing actionable remediation plans and post-mortem documentation to prevent recurrence.",
+        "Supported <b>AWS cloud infrastructure</b> operations including EC2, S3, VPC, IAM, RDS, and CloudWatch, assisting with environment configuration, access management, and resource health monitoring.",
+        "Developed <b>automated monitoring and alerting solutions</b> using Grafana, CloudWatch, and PagerDuty, reducing false-positive alert noise by 40% and improving incident detection accuracy across distributed services.",
+        "Collaborated with development teams in an <b>Agile/DevOps</b> environment to support <b>CI/CD pipelines</b> for automated build, test, and deployment processes, contributing to pre-release smoke testing and deployment validation checks.",
+        "Supported <b>Docker-containerised application deployments</b> and assisted with Kubernetes-based service management, contributing to environment reliability and deployment consistency.",
+        "Wrote <b>Python and Bash automation scripts</b> to streamline operational workflows, implement health-validation checks post-deployment, and reduce toil by automating recurring manual tasks.",
+        "Maintained detailed <b>runbooks, incident logs, and operational documentation</b>, enabling knowledge transfer and reducing resolution time for recurring incident patterns by 35%.",
+    ],
+    "skills": [
+        "<b>Cloud &amp; Infrastructure</b>  –  AWS (EC2, S3, VPC, IAM, RDS, ELB, CloudWatch), Linux system administration.",
+        "<b>Monitoring &amp; Observability</b>  –  Grafana, CloudWatch, Prometheus, PagerDuty, Datadog; log analysis and SLI/SLO tracking.",
+        "<b>Containers &amp; Orchestration</b>  –  Docker, Kubernetes (EKS/AKS), container lifecycle management.",
+        "<b>CI/CD &amp; Automation</b>  –  CI/CD pipeline support, Jenkins, Git, Bash and Python scripting, IaC concepts (Terraform, CloudFormation).",
+        "<b>Incident Management</b>  –  P1/P2 response, RCA, MTTR optimisation, SLA compliance, runbook creation, on-call support.",
+        "<b>Programming &amp; Scripting</b>  –  Python, Bash, SQL; automation of operational workflows and tooling.",
+        "<b>Development Practices</b>  –  ITIL, Agile/DevOps, Git, Jira, post-mortem documentation.",
+    ],
+    "projects": [
+        ("Production Incident Automation Framework (HCL Technologies)", [
+            "Built a Python-based incident automation tool integrated with PagerDuty and Jira, auto-creating tickets, assigning on-call engineers, and populating RCA templates — reducing manual overhead by 40% per incident.",
+            "Implemented automated pre-checks and health-validation scripts triggered post-deployment, catching 80% of configuration-related production issues before user impact.",
+            "Developed a Grafana dashboard consolidating application health, error rates, and SLA metrics, enabling the support team to identify degradation trends within minutes of occurrence.",
+        ]),
+        ("AWS Infrastructure Monitoring & Reliability (HCL Technologies)", [
+            "Configured CloudWatch alarms and dashboards across EC2, RDS, and application tiers, enabling proactive detection of resource contention and service degradation.",
+            "Supported on-call incident rotation, contributing to structured war-room coordination during major outages and driving resolution through systematic root cause analysis and cross-functional collaboration.",
+        ]),
+    ],
+}
+
+CONTENT["frontend"] = {
+    "bullets": [
+        "Built and maintained <b>responsive React and Angular web applications</b>, implementing reusable component libraries and state management patterns that improved development consistency and reduced UI build time by <b>25%</b>.",
+        "Developed <b>TypeScript and JavaScript (ES6+)</b> frontend features integrating with Java Spring Boot REST APIs, ensuring reliable data flows and clean separation of concerns across full-stack application layers.",
+        "Implemented <b>JWT-based authentication flows and role-based UI rendering</b> in Angular and React, ensuring secure and auditable access patterns across customer-facing interfaces.",
+        "Collaborated with UX designers and product owners to translate wireframes into <b>pixel-accurate, accessible HTML5/CSS3 components</b>, ensuring cross-browser compatibility and WCAG compliance.",
+        "Wrote <b>unit and component tests using Jest and React Testing Library</b>, achieving 80%+ frontend code coverage and catching UI regressions before production releases.",
+        "Worked with backend engineers in an <b>Agile/Scrum</b> environment to define API contracts, consume REST endpoints, and deliver end-to-end features across two-week sprint cycles.",
+        "Optimised <b>frontend bundle size and page load performance</b> using code splitting, lazy loading, and caching strategies, improving Time-to-Interactive metrics by 30% for high-traffic pages.",
+        "Maintained <b>CI/CD pipelines for frontend build and deployment</b> using Jenkins and Git, enabling automated testing and staging deployments with consistent, reproducible builds.",
+    ],
+    "skills": [
+        "<b>Frontend Frameworks</b>  –  React, Angular, Vue.js; component architecture, hooks, state management (Redux, NgRx).",
+        "<b>Languages</b>  –  TypeScript, JavaScript (ES6+), HTML5, CSS3, SCSS.",
+        "<b>Testing</b>  –  Jest, React Testing Library, Cypress; TDD, component and E2E testing.",
+        "<b>Backend Integration</b>  –  REST APIs, Java Spring Boot, JSON, OAuth2/JWT authentication.",
+        "<b>Cloud &amp; DevOps</b>  –  AWS (S3, CloudFront), Docker, Jenkins, CI/CD pipelines, Git.",
+        "<b>Databases</b>  –  PostgreSQL, MongoDB; supporting backend data requirements for frontend features.",
+        "<b>Development Practices</b>  –  Agile/Scrum, accessibility (WCAG), performance optimisation, code reviews.",
+    ],
+    "projects": [
+        ("Customer Portal – React Frontend (HCL Technologies)", [
+            "Built a React-based customer portal with TypeScript supporting profile management, transaction history, and real-time notifications, consuming Java Spring Boot REST APIs for 10,000+ users.",
+            "Implemented JWT authentication and role-based UI rendering, ensuring secure access across all portal modules and aligning with backend security policies.",
+            "Developed reusable component library and applied Redux state management patterns, reducing duplicate code by 30% and accelerating feature delivery across the application.",
+        ]),
+        ("Internal Admin Dashboard – Angular (HCL Technologies)", [
+            "Built a responsive Angular admin dashboard providing real-time data views via REST API integration, reducing operational reporting time by 40% for internal teams.",
+            "Configured frontend CI/CD pipeline with Jenkins for automated build, lint, test, and deployment to staging, ensuring reliable and reproducible releases.",
+        ]),
+    ],
+}
+
+def get_role_key(category, title=""):
+    cat   = category.lower()
+    title = title.lower()
+
+    # Title-first detection for specialist roles
+    if any(k in title for k in ["site reliability", "sre", "devops", "infrastructure engineer",
+                                  "infrastructure developer", "platform automation", "cloud engineer",
+                                  "reliability engineer"]):
+        return "sre_devops"
+    if any(k in title for k in ["frontend", "front-end", "front end", "react engineer",
+                                  "web developer", "ui engineer", "swift software"]):
+        return "frontend"
+
+    # Category-based fallback
+    if "java" in cat or "backend" in cat:                    return "java"
+    if "python" in cat:                                      return "python"
+    if "data analyst" in cat:                                return "data_analyst"
+    if "data scientist" in cat:                              return "data_scientist"
+    if "ai" in cat or "ml" in cat:                           return "ai_ml"
     if "production support" in cat or "prod support" in cat: return "prod_support"
-    if "it support" in cat or "it " in cat:                 return "it_support"
-    if "support" in cat:                                    return "prod_support"
-    if "full stack" in cat:                                 return "full_stack"
+    if "it support" in cat or "it " in cat:                  return "it_support"
+    if "support" in cat:                                     return "prod_support"
+    if "full stack" in cat:                                  return "full_stack"
     return "java"
 
 def make_resume(filename, exp_bullets, skills, proj_list, certs):
@@ -393,7 +471,7 @@ def generate_for_jobs(jobs_to_generate=None):
         if os.path.exists(fname):
             skipped += 1
             continue
-        rk   = get_role_key(job.get("category", "java"))
+        rk   = get_role_key(job.get("category", "java"), job.get("title", ""))
         data = CONTENT[rk]
         try:
             make_resume(fname, data["bullets"], data["skills"], data["projects"], CERTS)
