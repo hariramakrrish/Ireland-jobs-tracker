@@ -168,6 +168,16 @@ const GH_OWNER = 'hariramakrrish';
 const GH_REPO  = 'Ireland-jobs-tracker';
 const GH_PATH  = 'web/data/jobs.json';
 
+// Auto-seed PAT from build-time injection (Vercel injects via build.js).
+// The placeholder is replaced at build time — if it still contains the literal
+// placeholder string, we're in dev mode and skip seeding.
+(function() {
+  const injected = '__GITHUB_TOKEN_PLACEHOLDER__';
+  if (injected && injected !== '__GITHUB_TOKEN_PLACEHOLDER__') {
+    localStorage.setItem('gh_pat', injected);
+  }
+})();
+
 function getGHToken() {
   return localStorage.getItem('gh_pat') || '';
 }
