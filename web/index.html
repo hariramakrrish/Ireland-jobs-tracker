@@ -163,17 +163,37 @@
 <div id="sync-toast"></div>
 
 <script>
-// Token injected at build time — never committed to git
-const GH_TOKEN = '__GITHUB_TOKEN_PLACEHOLDER__';
+// GitHub config — token stored in localStorage (never in the repo)
 const GH_OWNER = 'hariramakrrish';
 const GH_REPO  = 'Ireland-jobs-tracker';
 const GH_PATH  = 'web/data/jobs.json';
 
+function getGHToken() {
+  return localStorage.getItem('gh_pat') || '';
+}
+
+function promptForToken() {
+  const t = prompt(
+    'Enter your GitHub Personal Access Token to enable status sync.\n\n' +
+    'Get one at: github.com/settings/tokens → Generate new token (classic)\n' +
+    'Required scope: repo\n\n' +
+    'This is saved in your browser only — never sent anywhere except GitHub API.'
+  );
+  if (t && t.trim()) {
+    localStorage.setItem('gh_pat', t.trim());
+    return t.trim();
+  }
+  return '';
+}
+
 async function syncStatusToGitHub(jobId, status, allJobs) {
-  if (!GH_TOKEN || GH_TOKEN === '__GITHUB_TOKEN_PLACEHOLDER__') return false;
+  let token = getGHToken();
+  if (!token) token = promptForToken();
+  if (!token) return false;
+
   const base = 'https://api.github.com';
   const hdrs = {
-    Authorization: `Bearer ${GH_TOKEN}`,
+    Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github.v3+json',
     'Content-Type': 'application/json',
   };
@@ -193,7 +213,12 @@ async function syncStatusToGitHub(jobId, status, allJobs) {
         sha: fileData.sha,
       }),
     });
-    if (!putRes.ok) { const e = await putRes.json(); throw new Error(e.message); }
+    if (!putRes.ok) {
+      const e = await putRes.json();
+      // If token is bad, clear it so user gets prompted again next time
+      if (putRes.status === 401) localStorage.removeItem('gh_pat');
+      throw new Error(e.message);
+    }
     return true;
   } catch(e) {
     console.error('GitHub sync error:', e);
