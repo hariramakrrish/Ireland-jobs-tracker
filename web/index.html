@@ -212,10 +212,10 @@ const GH_REPO  = 'Ireland-jobs-tracker';
 const GH_PATH  = 'web/data/jobs.json';
 
 // Auto-seed PAT from Vercel build-time injection (build.js replaces the placeholder).
-// Only seeds if localStorage is empty — never overwrites a manually-entered token.
+// Always overwrites localStorage so a newly-deployed token replaces any revoked one.
 (function() {
   const injected = '__GITHUB_TOKEN_PLACEHOLDER__';
-  if (injected && injected !== '__GITHUB_TOKEN_PLACEHOLDER__' && !localStorage.getItem('gh_pat')) {
+  if (injected && injected !== '__GITHUB_TOKEN_PLACEHOLDER__') {
     localStorage.setItem('gh_pat', injected);
   }
 })();
