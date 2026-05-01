@@ -159,18 +159,59 @@
   #sync-toast.show { opacity:1; }
   #sync-toast.ok   { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
   #sync-toast.err  { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
+
+  /* Settings button + badge */
+  #settings-btn { position:fixed; top:18px; right:20px; background:rgba(255,255,255,.15); border:none; color:#fff; border-radius:8px; padding:6px 12px; font-size:.82rem; cursor:pointer; display:flex; align-items:center; gap:6px; z-index:900; }
+  #settings-btn:hover { background:rgba(255,255,255,.25); }
+  #pending-badge { background:#f59e0b; color:#fff; border-radius:10px; padding:1px 6px; font-size:.72rem; font-weight:700; display:none; }
+  #pending-badge.show { display:inline; }
+
+  /* Modal overlay */
+  #pat-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center; }
+  #pat-modal.open { display:flex; }
+  #pat-box { background:#fff; border-radius:12px; padding:28px 32px; max-width:480px; width:90%; box-shadow:0 8px 40px rgba(0,0,0,.2); }
+  #pat-box h2 { font-size:1.1rem; color:var(--navy); margin-bottom:8px; }
+  #pat-box p  { font-size:.85rem; color:var(--grey); margin-bottom:16px; line-height:1.5; }
+  #pat-box label { font-size:.82rem; font-weight:600; color:var(--text); display:block; margin-bottom:6px; }
+  #pat-input { width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:.85rem; font-family:monospace; outline:none; }
+  #pat-input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(46,95,163,.15); }
+  .pat-actions { display:flex; gap:10px; margin-top:18px; justify-content:flex-end; }
+  .pat-btn { padding:8px 18px; border-radius:7px; font-size:.85rem; font-weight:600; cursor:pointer; border:none; }
+  .pat-btn-save  { background:var(--blue); color:#fff; }
+  .pat-btn-clear { background:#fee2e2; color:#b91c1c; }
+  .pat-btn-cancel{ background:var(--bg); color:var(--grey); border:1px solid var(--border); }
+  #pat-sync-info { margin-top:14px; font-size:.8rem; padding:10px 12px; border-radius:7px; display:none; }
+  #pat-sync-info.has-pending { display:block; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+  #pat-sync-info.no-pending  { display:block; background:#dcfce7; color:#15803d; border:1px solid #86efac; }
 </style>
 <div id="sync-toast"></div>
 
+<!-- Settings button (fixed top-right) -->
+<button id="settings-btn" onclick="openPATModal()">⚙ Sync <span id="pending-badge"></span></button>
+
+<!-- PAT settings modal -->
+<div id="pat-modal">
+  <div id="pat-box">
+    <h2>🔑 GitHub Sync Settings</h2>
+    <p>Status changes are saved locally in your browser. To sync them across devices, enter a GitHub Personal Access Token with <strong>repo</strong> scope.</p>
+    <label for="pat-input">GitHub Personal Access Token</label>
+    <input id="pat-input" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off"/>
+    <div id="pat-sync-info"></div>
+    <div class="pat-actions">
+      <button class="pat-btn pat-btn-clear" onclick="clearPAT()">Clear Token</button>
+      <button class="pat-btn pat-btn-cancel" onclick="closePATModal()">Cancel</button>
+      <button class="pat-btn pat-btn-save" onclick="savePAT()">Save &amp; Sync</button>
+    </div>
+  </div>
+</div>
+
 <script>
-// GitHub config — token stored in localStorage (never in the repo)
+// ─── GitHub / Sync config ────────────────────────────────────────────────────
 const GH_OWNER = 'hariramakrrish';
 const GH_REPO  = 'Ireland-jobs-tracker';
 const GH_PATH  = 'web/data/jobs.json';
 
-// Auto-seed PAT from build-time injection (Vercel injects via build.js).
-// The placeholder is replaced at build time — if it still contains the literal
-// placeholder string, we're in dev mode and skip seeding.
+// Auto-seed PAT from Vercel build-time injection (build.js replaces the placeholder).
 (function() {
   const injected = '__GITHUB_TOKEN_PLACEHOLDER__';
   if (injected && injected !== '__GITHUB_TOKEN_PLACEHOLDER__') {
@@ -178,28 +219,86 @@ const GH_PATH  = 'web/data/jobs.json';
   }
 })();
 
-function getGHToken() {
-  return localStorage.getItem('gh_pat') || '';
-}
+function getGHToken()      { return localStorage.getItem('gh_pat') || ''; }
+function setGHToken(t)     { t ? localStorage.setItem('gh_pat', t) : localStorage.removeItem('gh_pat'); }
 
-function promptForToken() {
-  const t = prompt(
-    'Enter your GitHub Personal Access Token to enable status sync.\n\n' +
-    'Get one at: github.com/settings/tokens → Generate new token (classic)\n' +
-    'Required scope: repo\n\n' +
-    'This is saved in your browser only — never sent anywhere except GitHub API.'
-  );
-  if (t && t.trim()) {
-    localStorage.setItem('gh_pat', t.trim());
-    return t.trim();
+// ─── PAT Settings Modal ──────────────────────────────────────────────────────
+function openPATModal() {
+  const tok = getGHToken();
+  document.getElementById('pat-input').value = tok ? '●'.repeat(20) : '';
+  updatePATSyncInfo();
+  document.getElementById('pat-modal').classList.add('open');
+}
+function closePATModal() {
+  document.getElementById('pat-modal').classList.remove('open');
+}
+function clearPAT() {
+  setGHToken('');
+  document.getElementById('pat-input').value = '';
+  updatePATSyncInfo();
+  showToast('Token cleared — sync disabled', 'err');
+}
+async function savePAT() {
+  const raw = document.getElementById('pat-input').value.trim();
+  // If the field shows bullets (masked existing token), don't overwrite
+  if (raw && !raw.startsWith('●')) {
+    setGHToken(raw);
+    showToast('Token saved', 'ok');
   }
-  return '';
+  closePATModal();
+  // Flush any pending changes now that we have a token
+  await flushPending();
+}
+function updatePATSyncInfo() {
+  const el    = document.getElementById('pat-sync-info');
+  const count = Object.keys(pending).length;
+  if (count > 0) {
+    el.className  = 'has-pending';
+    el.textContent = `⚠ ${count} status change${count>1?'s':''} saved locally — will sync after saving token.`;
+    el.style.display = 'block';
+  } else {
+    el.className  = 'no-pending';
+    el.textContent = '✓ All status changes are synced.';
+    el.style.display = 'block';
+  }
 }
 
-async function syncStatusToGitHub(jobId, status, allJobs) {
-  let token = getGHToken();
-  if (!token) token = promptForToken();
-  if (!token) return false;
+// Close modal on backdrop click
+document.getElementById('pat-modal').addEventListener('click', function(e) {
+  if (e.target === this) closePATModal();
+});
+
+// ─── Core sync logic ─────────────────────────────────────────────────────────
+/**
+ * Try syncing via the Vercel serverless function first (no client token needed).
+ * If the server returns 503 (GITHUB_TOKEN not configured), fall back to direct GitHub API
+ * using the user's localStorage PAT.
+ */
+async function syncStatusToGitHub(jobId, status) {
+  // ── Path 1: server-side proxy (no token needed in browser) ──────────────
+  try {
+    const r = await fetch('/api/sync-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, status }),
+    });
+    if (r.ok) return true;                         // success
+    if (r.status !== 503) {
+      const e = await r.json().catch(()=>({}));
+      console.warn('Server sync failed:', r.status, e.error);
+      // 4xx errors (bad jobId etc.) — no point trying client path
+      if (r.status >= 400 && r.status < 500) return false;
+    }
+    // 503 → server token not configured, fall through to client path
+  } catch(_) { /* network error or /api not available — fall through */ }
+
+  // ── Path 2: direct GitHub API with localStorage PAT ─────────────────────
+  const token = getGHToken();
+  if (!token) {
+    // Don't open a blocking prompt — just show the settings modal
+    openPATModal();
+    return false;
+  }
 
   const base = 'https://api.github.com';
   const hdrs = {
@@ -211,8 +310,8 @@ async function syncStatusToGitHub(jobId, status, allJobs) {
     const getRes = await fetch(`${base}/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, { headers: hdrs });
     if (!getRes.ok) throw new Error(`GET ${getRes.status}`);
     const fileData = await getRes.json();
-    const jobs = JSON.parse(atob(fileData.content.replace(/\n/g, '')));
-    const job  = jobs.find(j => j.id === jobId);
+    const jobs     = JSON.parse(atob(fileData.content.replace(/\n/g, '')));
+    const job      = jobs.find(j => j.id === jobId);
     if (!job) throw new Error('job not found');
     job.status = status;
     const putRes = await fetch(`${base}/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, {
@@ -225,8 +324,10 @@ async function syncStatusToGitHub(jobId, status, allJobs) {
     });
     if (!putRes.ok) {
       const e = await putRes.json();
-      // If token is bad, clear it so user gets prompted again next time
-      if (putRes.status === 401) localStorage.removeItem('gh_pat');
+      if (putRes.status === 401) {
+        setGHToken('');   // bad token — clear so modal shows on next attempt
+        openPATModal();
+      }
       throw new Error(e.message);
     }
     return true;
@@ -235,6 +336,41 @@ async function syncStatusToGitHub(jobId, status, allJobs) {
     return false;
   }
 }
+
+/** Retry all pending locally-saved status changes. */
+async function flushPending() {
+  const ids = Object.keys(pending);
+  if (ids.length === 0) return;
+  showToast(`Syncing ${ids.length} pending change${ids.length>1?'s':''}…`, 'ok');
+  for (const id of ids) {
+    const ok = await syncStatusToGitHub(id, pending[id]);
+    if (ok) {
+      delete pending[id];
+      localStorage.setItem('pending_statuses', JSON.stringify(pending));
+    }
+  }
+  updatePendingBadge();
+  if (Object.keys(pending).length === 0) showToast('✓ All changes synced', 'ok');
+}
+
+function updatePendingBadge() {
+  const count = Object.keys(pending).length;
+  const badge = document.getElementById('pending-badge');
+  if (count > 0) {
+    badge.textContent = count;
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+// Flush pending on page load (e.g. user just set a token in another tab)
+window.addEventListener('load', () => {
+  updatePendingBadge();
+  if (Object.keys(pending).length > 0 && (getGHToken())) {
+    flushPending();
+  }
+});
 </script>
 
 <script>
@@ -313,19 +449,23 @@ async function changeStatus(id, sel) {
   sel.className = `status-sel status-${stc}`;
   sel.closest("tr").dataset.status = val;
 
-  // Save locally immediately so UI is snappy
+  // Save locally immediately — UI stays snappy no matter what
   pending[id] = val;
   localStorage.setItem("pending_statuses", JSON.stringify(pending));
   renderStats(ALL_JOBS);
+  updatePendingBadge();
 
-  // Sync directly to GitHub API (token injected at build time)
-  const ok = await syncStatusToGitHub(id, val, ALL_JOBS);
+  // Attempt GitHub sync
+  const ok = await syncStatusToGitHub(id, val);
   if (ok) {
     delete pending[id];
     localStorage.setItem("pending_statuses", JSON.stringify(pending));
     showToast("✓ Status saved", "ok");
+    updatePendingBadge();
   } else {
-    showToast("⚠ Kept locally — will sync when online", "err");
+    // Only show the "kept locally" toast if the modal didn't open
+    if (document.getElementById('pat-modal').classList.contains('open')) return;
+    showToast("⚠ Saved locally — enter token to sync", "err");
   }
 }
 
