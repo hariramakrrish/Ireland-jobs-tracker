@@ -5,6 +5,6 @@
   "outputDirectory": "dist",
   "installCommand": "echo no-install",
   "functions": {
-    "api/*.js": {}
+    "api/*.js": { "maxDuration": 10 }
   }
 }
