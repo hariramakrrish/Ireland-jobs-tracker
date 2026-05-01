@@ -282,14 +282,10 @@ async function syncStatusToGitHub(jobId, status) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jobId, status }),
     });
-    if (r.ok) return true;                         // success
-    if (r.status !== 503) {
-      const e = await r.json().catch(()=>({}));
-      console.warn('Server sync failed:', r.status, e.error);
-      // 4xx errors (bad jobId etc.) — no point trying client path
-      if (r.status >= 400 && r.status < 500) return false;
-    }
-    // 503 → server token not configured, fall through to client path
+    if (r.ok) return true;  // success — done
+    // Any failure (404 function not found, 503 no token, etc.) → fall through to client path
+    const e = await r.json().catch(()=>({}));
+    console.warn('Server sync failed:', r.status, e.error, '— trying client PAT');
   } catch(_) { /* network error or /api not available — fall through */ }
 
   // ── Path 2: direct GitHub API with localStorage PAT ─────────────────────
