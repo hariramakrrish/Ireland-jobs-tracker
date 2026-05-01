@@ -5,7 +5,7 @@
   "outputDirectory": "dist",
   "installCommand": "echo no-install",
   "functions": {
-    "api/*.js": { "runtime": "nodejs18.x" }
+    "api/*.js": { "runtime": "@vercel/node@3.2.7" }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" }
