@@ -291,6 +291,39 @@ CONTENT = {
 },
 }
 
+CONTENT["qa_testing"] = {
+    "bullets": [
+        "Designed, created, executed, and maintained <b>structured test cases</b> covering functional, regression, integration, and smoke testing across enterprise Java and Python-based applications, identifying and logging defects with clear reproduction steps.",
+        "Contributed to the development of <b>test plans, test scripts, and test management documentation</b>, ensuring traceability between requirements, test coverage, and defect resolution throughout the project lifecycle.",
+        "Performed <b>pre-release smoke testing and health-validation checks</b> triggered post-deployment, catching 80% of configuration-related defects before reaching end users and reducing production incident rates significantly.",
+        "Logged, tracked, and supported the resolution of defects using <b>Jira</b>, maintaining accurate defect status reporting and communicating testing progress, risks, and outcomes to the project team and stakeholders through clear written reports.",
+        "Executed <b>User Acceptance Testing (UAT) activities</b> in collaboration with business stakeholders, validating that delivered features met agreed functional requirements and contributing to formal sign-off processes.",
+        "Developed <b>Python and SQL-based automated test scripts</b> to validate data integrity, API responses, and system behaviour, reducing manual regression effort by 35% and improving test repeatability across release cycles.",
+        "Worked with <b>PostgreSQL, MySQL, and Oracle databases</b> to perform data validation testing, verify query outputs, and ensure data integrity across integrated systems in support of end-to-end testing activities.",
+        "Collaborated with development, infrastructure, and business teams in an <b>Agile/Scrum</b> environment to understand requirements, clarify acceptance criteria, and deliver comprehensive test coverage aligned with sprint goals.",
+    ],
+    "skills": [
+        "<b>Testing Types</b>  –  Functional, regression, integration, smoke, performance, and User Acceptance Testing (UAT).",
+        "<b>Test Management</b>  –  Test plan creation, test case design, execution tracking, defect logging, and test summary reporting.",
+        "<b>Defect &amp; Project Tools</b>  –  Jira, Confluence; defect lifecycle management, RAID/RACI tracking, stakeholder reporting.",
+        "<b>Test Automation</b>  –  Python scripting for automated test execution, SQL-based data validation, API testing.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, Oracle; data integrity checks, query validation, and test data management.",
+        "<b>Programming Languages</b>  –  Python, SQL, Java, Bash; used for scripting and test automation tooling.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, CI/CD pipeline testing, pre-release validation, documentation.",
+    ],
+    "projects": [
+        ("Pre-Release Test Automation Framework (HCL Technologies)", [
+            "Designed and implemented a Python-based automated pre-release testing suite integrated with CI/CD pipelines, executing health-validation checks and smoke tests post-deployment and catching 80% of configuration defects before user impact.",
+            "Developed structured test scripts covering API response validation, database integrity checks, and end-to-end workflow verification, reducing manual regression effort by 35% across release cycles.",
+            "Maintained test execution evidence and produced weekly test summary reports communicated to project leads and stakeholders, ensuring clear visibility of defect status and release readiness.",
+        ]),
+        ("Defect Analysis & Data Validation Testing (HCL Technologies)", [
+            "Designed and executed SQL-based data validation test cases across PostgreSQL and Oracle environments, identifying data integrity issues and logging defects with full reproduction steps and impact analysis.",
+            "Collaborated with development and business teams in Agile sprints to review requirements, define acceptance criteria, and contribute to UAT execution and formal sign-off activities for enterprise application features.",
+        ]),
+    ],
+}
+
 CONTENT["sre_devops"] = {
     "bullets": [
         "Managed <b>end-to-end production incident response</b> across mission-critical AWS-hosted enterprise applications, achieving average MTTR under 30 minutes and maintaining <b>99.9% system availability</b> against defined SLIs, SLOs, and SLA targets.",
@@ -369,6 +402,10 @@ def get_role_key(category, title=""):
     if any(k in title for k in ["frontend", "front-end", "front end", "react engineer",
                                   "web developer", "ui engineer", "swift software"]):
         return "frontend"
+    if any(k in title for k in ["tester", "qa engineer", "qe engineer", "quality assurance",
+                                  "test engineer", "solution tester", "software tester",
+                                  "quality engineer", "testing"]):
+        return "qa_testing"
 
     # Category-based fallback
     if "java" in cat or "backend" in cat:                    return "java"
