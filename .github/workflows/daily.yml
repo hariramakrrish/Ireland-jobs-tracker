@@ -31,7 +31,8 @@ jobs:
 
       - name: Run job search & resume generation
         env:
-          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_TOKEN:      ${{ secrets.APIFY_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python scripts/run_pipeline.py
 
       - name: Commit and push new resumes + updated data

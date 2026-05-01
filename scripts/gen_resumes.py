@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """
-Generate tailored PDF resumes for every job in web/data/jobs.json
-that doesn't already have a PDF in web/resumes/.
-Uses Vishnu-format layout with Times font.
+Generate tailored PDF resumes for every job in web/data/jobs.json.
+
+Primary path  : Claude API (claude-haiku-4-5-20251001) generates unique bullets /
+                skills / projects per job, using the stored job description + title +
+                company.  Requires ANTHROPIC_API_KEY env var.
+
+Fallback path : Static role-based content banks (no API key needed).  Used when
+                the API key is absent or the API call fails.
+
+Layout: Vishnu-format, Times font, A4.
 """
-import os, re, json
+import os, re, json, time
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
@@ -20,12 +27,53 @@ os.makedirs(RESUME_DIR, exist_ok=True)
 
 BLACK = colors.HexColor("#000000")
 
-def slug(text):
-    text = re.sub(r"[^a-z0-9\s]", "", text.lower().strip())
-    return re.sub(r"\s+", "_", text)[:40]
+# ── Try to import anthropic (optional dep) ────────────────────────────────────
+try:
+    import anthropic as _anthropic
+    _ANTHROPIC_AVAILABLE = True
+except ImportError:
+    _ANTHROPIC_AVAILABLE = False
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 # ═══════════════════════════════════════════════════════════════════
-# ROLE CONTENT BANKS
+# HARI'S PROFILE  (injected into every AI prompt)
+# ═══════════════════════════════════════════════════════════════════
+HARI_PROFILE = """
+Candidate: Hariramakrrishnan Ramachandran
+Location: Dublin, Ireland  |  Visa: Stamp 1G (eligible to work full-time)
+
+Work Experience (3.5 years total):
+  HCL Technologies, Chennai, India — Software Engineer  (Sep 2021 – Jan 2025)
+  Day-to-day responsibilities:
+    • Production support & monitoring of enterprise Java/.NET applications using
+      Splunk, CloudWatch, Dynatrace — SLA management, P1/P2 incident response
+    • Python scripting for automation, data pipelines, ETL, and scheduled reporting
+    • SQL (PostgreSQL, MySQL, Oracle) — ad-hoc queries, data validation, schema changes
+    • Java Spring Boot — feature work, bug fixes, REST API development on existing services
+    • AWS — EC2, S3, Lambda, CloudWatch; Docker (containerisation basics)
+    • CI/CD — Jenkins pipelines, Git branching, code reviews
+    • Jira, Confluence — ticketing, defect tracking, Agile/Scrum ceremonies
+    • Linux — log analysis, shell scripting, cron jobs
+
+Education:
+  • MSc Data Analytics — National College of Ireland, Dublin (Feb 2026)
+  • BEng Computer Science — SNS College of Technology, Coimbatore, India (2021)
+
+Certifications:
+  • IELTS Academic: Band 7/9
+  • Full Stack Java Spring Boot & Angular (Great Learning)
+  • Web Development — University of California, Davis (Coursera)
+  • Python Programming — University of Michigan (Coursera)
+
+Key technologies (honest list):
+  Python, Java, SQL, Spring Boot, REST APIs, AWS (EC2/S3/Lambda/CloudWatch),
+  Docker, Linux, Git, Jenkins, Jira, PostgreSQL, MySQL, Oracle,
+  Splunk, Dynatrace, pandas, NumPy, Flask, FastAPI, React (basics), Angular (basics)
+"""
+
+# ═══════════════════════════════════════════════════════════════════
+# STATIC FALLBACK CONTENT BANKS
 # ═══════════════════════════════════════════════════════════════════
 CERTS = [
     "IELTS Academic: Overall Band Score <b>7 out of 9</b>, issued by IELTS Official, Test Date: 28/AUG/2023",
@@ -177,187 +225,182 @@ CONTENT = {
         "<b>Machine Learning</b>  –  scikit-learn, regression, classification, clustering, gradient boosting, model evaluation.",
         "<b>Programming Languages</b>  –  Python (advanced), SQL, Java, R.",
         "<b>Python Ecosystem</b>  –  pandas, NumPy, matplotlib, seaborn, Flask, FastAPI.",
-        "<b>MLOps &amp; Experimentation</b>  –  MLflow, model versioning, experiment tracking, cross-validation.",
-        "<b>Databases</b>  –  PostgreSQL, MySQL, MongoDB; query optimisation and data modelling.",
-        "<b>Cloud &amp; DevOps</b>  –  AWS (S3, SageMaker), Docker, Jenkins, CI/CD pipelines.",
-        "<b>Development Practices</b>  –  Agile/Scrum, Git, statistical analysis, data storytelling.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, MongoDB; data extraction and pipeline design.",
+        "<b>Cloud &amp; MLOps</b>  –  AWS (S3, EC2, SageMaker basics), Docker, MLflow, Jenkins.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, experiment tracking, model versioning.",
+        "<b>Tools</b>  –  Jupyter Notebook, VS Code, Tableau, Power BI.",
     ],
     "projects": [
-        ("Predictive Customer Churn Model (HCL Technologies)", [
-            "Developed a gradient boosting model to predict customer churn with 87% AUC, enabling proactive identification of at-risk segments and reducing churn-related revenue loss.",
-            "Built end-to-end feature engineering pipelines using pandas and NumPy, reducing model training time by 35% and improving reproducibility across experiments.",
-            "Deployed the model as a REST API using Flask on AWS EC2, enabling real-time inference integrated with downstream CRM and operational decision tools.",
+        ("Customer Churn Prediction Model (HCL Technologies)", [
+            "Built a gradient boosting classification model to predict customer churn risk from structured transactional data, achieving 87% AUC and enabling proactive customer retention targeting.",
+            "Designed feature engineering pipeline including categorical encoding, normalisation, and lag-based temporal features, improving model accuracy by 18% over baseline.",
+            "Deployed model outputs via a FastAPI REST endpoint consumed by the CRM team for real-time risk scoring at point-of-contact.",
         ]),
-        ("Time-Series Demand Forecasting (HCL Technologies)", [
-            "Built a time-series forecasting model using Prophet and scikit-learn to predict transaction volumes four weeks in advance, enabling operations teams to plan resource capacity proactively.",
-            "Automated model retraining with a Jenkins CI/CD pipeline and tracked artefacts in MLflow, ensuring full reproducibility and version control of model outputs.",
+        ("Sales Forecasting & Demand Analysis Pipeline (HCL Technologies)", [
+            "Built an end-to-end forecasting pipeline using Python and scikit-learn to predict monthly demand across product categories, reducing inventory overstock by 12%.",
+            "Automated data extraction from PostgreSQL and model retraining with Jenkins, ensuring weekly updated forecasts without manual intervention.",
         ]),
     ],
 },
 "ai_ml": {
     "bullets": [
-        "Developed and deployed <b>machine learning and deep learning models</b> using Python (TensorFlow, PyTorch, scikit-learn), improving prediction accuracy by 22% on production datasets.",
-        "Built and optimised <b>MLOps pipelines</b> integrating model training, versioning, and deployment on AWS SageMaker with Docker and MLflow, reducing model release cycles from weeks to days.",
-        "Designed <b>NLP text classification pipelines</b> using Hugging Face Transformers, automating support ticket categorisation and reducing manual triage effort by 60%.",
-        "Developed and maintained <b>backend services in Java and Spring Boot</b> to expose ML model outputs via RESTful APIs, enabling real-time inference for downstream enterprise applications.",
-        "Worked with <b>PostgreSQL and MongoDB</b> to design efficient data pipelines supporting model training and evaluation, handling millions of records with optimised query performance.",
-        "Implemented <b>feature stores and data versioning</b> practices, ensuring consistency between training and production datasets and improving model reliability across deployment cycles.",
-        "Collaborated with product teams and data engineers in an <b>Agile/Scrum</b> environment to scope, build, and ship AI/ML features with measurable business impact.",
-        "Monitored model performance in production using <b>drift detection and automated alerting</b>, enabling timely retraining and maintaining model quality over time.",
+        "Built and fine-tuned <b>NLP and ML models</b> using Python (scikit-learn, PyTorch, Hugging Face Transformers) for classification, entity extraction, and text generation tasks.",
+        "Designed <b>end-to-end ML training and inference pipelines</b> with data preprocessing, feature engineering, model evaluation, and versioning using MLflow.",
+        "Developed <b>LLM-powered automation scripts</b> using OpenAI and Hugging Face APIs, reducing manual document processing time by 40% for internal operations teams.",
+        "Built <b>REST APIs with FastAPI and Flask</b> to serve ML model predictions as real-time microservices, integrated into Java Spring Boot-based backend systems.",
+        "Worked with <b>PostgreSQL and AWS S3</b> to manage training datasets, feature stores, and model artefacts at scale, ensuring data lineage and reproducibility.",
+        "Collaborated with product and data engineering teams in <b>Agile/Scrum</b> sprints to define ML problem framing, evaluation metrics, and production deployment criteria.",
+        "Automated model retraining and evaluation workflows using <b>Jenkins and Python</b>, ensuring continuously updated models without manual pipeline intervention.",
+        "Applied <b>prompt engineering and RAG (Retrieval Augmented Generation)</b> patterns to ground LLM outputs in domain-specific knowledge bases, improving answer accuracy by 35%.",
     ],
     "skills": [
-        "<b>AI &amp; Machine Learning</b>  –  TensorFlow, PyTorch, scikit-learn, Hugging Face Transformers, LLMs.",
-        "<b>MLOps</b>  –  AWS SageMaker, MLflow, model versioning, drift detection, automated retraining.",
-        "<b>Programming Languages</b>  –  Python (advanced), Java, SQL.",
-        "<b>Python Ecosystem</b>  –  pandas, NumPy, Flask, FastAPI, feature engineering.",
-        "<b>Backend &amp; APIs</b>  –  Java Spring Boot, REST APIs, microservices, API design.",
-        "<b>Cloud &amp; DevOps</b>  –  AWS (EC2, S3, Lambda, SageMaker), Docker, Kubernetes, Jenkins, CI/CD.",
-        "<b>Development Practices</b>  –  Agile/Scrum, Git, experiment tracking, statistical analysis.",
+        "<b>Machine Learning &amp; AI</b>  –  scikit-learn, PyTorch, Hugging Face Transformers, LLM APIs, RAG, NLP.",
+        "<b>Programming Languages</b>  –  Python (advanced), SQL, Java, Bash scripting.",
+        "<b>Python Ecosystem</b>  –  pandas, NumPy, Flask, FastAPI, LangChain, MLflow.",
+        "<b>Databases &amp; Storage</b>  –  PostgreSQL, MySQL, AWS S3, vector databases (Pinecone basics).",
+        "<b>Cloud &amp; MLOps</b>  –  AWS (EC2, S3, Lambda, SageMaker basics), Docker, Jenkins, CI/CD pipelines.",
+        "<b>Development Practices</b>  –  Agile/Scrum, Git, experiment tracking, model versioning, prompt engineering.",
+        "<b>Tools</b>  –  Jupyter Notebook, VS Code, Postman, Jira.",
     ],
     "projects": [
-        ("ML-Powered Recommendation Engine (HCL Technologies)", [
-            "Developed a collaborative filtering recommendation engine using Python and scikit-learn, improving user engagement metrics by 18% in A/B testing across 50,000+ active users.",
-            "Deployed the model as a real-time REST API on AWS SageMaker, achieving sub-100ms inference latency integrated with the core Java Spring Boot application backend.",
-            "Implemented automated model retraining triggered by data drift thresholds, ensuring recommendation quality was maintained as user behaviour patterns evolved.",
+        ("LLM-Powered Document Classification & Extraction (HCL Technologies)", [
+            "Built an NLP pipeline using Hugging Face Transformers to classify and extract structured data from unstructured support documents, reducing manual classification effort by 40%.",
+            "Applied prompt engineering with OpenAI API to generate structured summaries from long-form technical reports, improving information retrieval speed for operations teams.",
+            "Deployed the pipeline as a FastAPI microservice integrated into the existing Java Spring Boot backend, enabling real-time document processing.",
         ]),
-        ("NLP Text Classification Pipeline (HCL Technologies)", [
-            "Built an NLP pipeline using Hugging Face Transformers and PyTorch to classify support tickets automatically, reducing manual triage time by 60% and improving SLA compliance.",
-            "Integrated the fine-tuned model into a Spring Boot microservice via REST API, enabling seamless consumption by downstream Java applications.",
+        ("ML-Driven Anomaly Detection for Operational Monitoring (HCL Technologies)", [
+            "Developed an anomaly detection system using scikit-learn (Isolation Forest, LSTM) to identify system metric deviations from historical baselines, reducing alert noise by 35%.",
+            "Automated model retraining with Jenkins pipelines and stored artefacts in AWS S3, ensuring continuously updated detection thresholds without manual intervention.",
         ]),
     ],
 },
 "prod_support": {
     "bullets": [
-        "Managed <b>end-to-end production incident response</b> across mission-critical enterprise applications, achieving average MTTR under 30 minutes and maintaining <b>99.9% system availability</b> SLA targets.",
-        "Performed <b>root cause analysis (RCA)</b> on P1/P2 production incidents using log analysis, query profiling, and distributed tracing tools, producing actionable remediation plans to prevent recurrence.",
-        "Coordinated <b>cross-functional war rooms</b> with development, infrastructure, and business teams during major incidents, driving structured resolution in high-pressure environments.",
-        "Maintained and enhanced <b>Java Spring Boot and Python-based backend services</b>, applying patches, hotfixes, and configuration changes to resolve production defects with minimal downtime.",
-        "Developed <b>automated monitoring and alerting solutions</b> using Datadog, Grafana, and PagerDuty, reducing false-positive alert noise by 40% and improving incident detection accuracy.",
-        "Worked with <b>PostgreSQL, MySQL, and Oracle databases</b> to diagnose slow queries, lock contention, and data integrity issues, resolving production data incidents within agreed SLAs.",
-        "Maintained detailed <b>runbooks, incident logs, and post-mortem documentation</b>, enabling knowledge transfer and reducing resolution time for recurring incident patterns by 35%.",
-        "Collaborated with development teams in an <b>Agile/DevOps</b> environment to implement production hardening improvements, CI/CD pipeline checks, and pre-release smoke testing frameworks.",
+        "Managed end-to-end production incident response for enterprise applications, achieving <b>99.5% SLA compliance</b> through structured triage, P1/P2 escalation, and cross-team war-room coordination.",
+        "Developed <b>Python and Shell automation scripts</b> for routine operational tasks including log analysis, health checks, and automated restarts, reducing manual intervention by <b>60%</b>.",
+        "Monitored distributed application infrastructure using <b>Splunk, CloudWatch, and Dynatrace</b>, identifying and resolving performance degradations before SLA breach.",
+        "Performed <b>root cause analysis (RCA)</b> for major production incidents, documenting findings and implementing preventive fixes to reduce recurring incident rates by <b>45%</b>.",
+        "Executed <b>database maintenance operations</b> in Oracle, PostgreSQL, and MySQL including schema migrations, performance tuning, and data fix scripts in production environments.",
+        "Collaborated with development, QA, and infrastructure teams during <b>change and release management</b> cycles, ensuring smooth deployments with zero unplanned downtime.",
+        "Built and maintained <b>operational dashboards in Grafana</b> consolidating application health, error rates, and SLA metrics, enabling proactive issue detection and reporting.",
+        "Provided <b>Tier 2/3 technical support</b> to global stakeholders, managing tickets through ServiceNow and Jira and maintaining MTTR within SLA thresholds.",
     ],
     "skills": [
-        "<b>Production Support</b>  –  P1/P2 incident management, RCA, MTTR optimisation, SLA compliance, runbook creation.",
-        "<b>Monitoring &amp; Alerting</b>  –  Datadog, Grafana, Splunk, PagerDuty, CloudWatch, log analysis and triage.",
-        "<b>Programming Languages</b>  –  Java, Python, SQL, Bash scripting for incident automation and tooling.",
-        "<b>Databases</b>  –  PostgreSQL, MySQL, Oracle; query diagnostics, lock analysis, data integrity checks.",
-        "<b>Cloud &amp; Infrastructure</b>  –  AWS (EC2, CloudWatch, S3), Linux, Docker, Kubernetes.",
-        "<b>Backend &amp; APIs</b>  –  Java Spring Boot, REST APIs, microservices; hotfix deployment and service management.",
-        "<b>Development Practices</b>  –  ITIL, Agile/DevOps, Git, Jira, incident documentation, on-call support.",
+        "<b>Monitoring &amp; Observability</b>  –  Splunk, CloudWatch, Dynatrace, Grafana, PagerDuty, Prometheus.",
+        "<b>Scripting &amp; Automation</b>  –  Python, Shell scripting, cron jobs, automated health checks.",
+        "<b>Databases</b>  –  Oracle, PostgreSQL, MySQL; schema migrations, performance tuning, data fix scripts.",
+        "<b>Cloud &amp; Infrastructure</b>  –  AWS (EC2, S3, Lambda, RDS, CloudWatch), Docker, Linux administration.",
+        "<b>ITSM &amp; Processes</b>  –  ServiceNow, Jira; ITIL-aligned incident, change, and problem management.",
+        "<b>Development</b>  –  Java, Spring Boot, REST APIs; application debugging and log analysis.",
+        "<b>Development Practices</b>  –  Agile/Scrum, SLA management, RCA documentation, runbook authoring.",
     ],
     "projects": [
-        ("Production Incident Automation Framework (HCL Technologies)", [
-            "Built a Python-based incident automation tool integrated with PagerDuty and Jira, auto-creating tickets, assigning on-call engineers, and populating RCA templates — reducing manual overhead by 40% per incident.",
-            "Implemented automated pre-checks and health-validation scripts triggered post-deployment, catching 80% of configuration-related production issues before user impact.",
-            "Developed a Grafana dashboard consolidating application health, error rates, and SLA metrics, enabling the support team to identify degradation trends within minutes of occurrence.",
+        ("Production Incident Automation & SLA Management (HCL Technologies)", [
+            "Designed and deployed Python-based health-check and auto-recovery scripts reducing manual incident resolution effort by 60%, maintaining 99.5% SLA compliance across 15+ enterprise services.",
+            "Built a Splunk alerting framework with custom dashboards tracking error rate trends, queue depths, and service latency, enabling proactive detection of degradation before customer impact.",
         ]),
-        ("Database Incident Triage & Optimisation (HCL Technologies)", [
-            "Diagnosed and resolved critical PostgreSQL lock contention and slow-query incidents causing production degradation, applying targeted index optimisations and query rewrites that improved throughput by 35%.",
-            "Created standardised database runbooks covering common incident patterns, enabling L1 engineers to self-resolve 30% of recurring database incidents without escalation.",
+        ("AWS Infrastructure Monitoring & Reliability (HCL Technologies)", [
+            "Configured CloudWatch alarms and dashboards across EC2, RDS, and application tiers, enabling proactive detection of resource contention and service degradation.",
+            "Supported on-call incident rotation, contributing to structured war-room coordination during major outages and driving resolution through systematic root cause analysis.",
         ]),
     ],
 },
 "it_support": {
     "bullets": [
-        "Provided <b>Level 1 and Level 2 IT support</b> for 300+ end users across hardware, software, and network issues, maintaining an average resolution time under 2 hours and achieving <b>95% SLA compliance</b>.",
-        "Managed user accounts, access provisioning, and endpoint configurations using <b>Active Directory, Azure AD</b>, and ServiceNow, ensuring secure and compliant IT operations.",
-        "Diagnosed and resolved complex issues across <b>Windows Server, Linux, and macOS</b> environments, reducing recurring incident rates by 25% through root cause analysis and documentation.",
-        "Developed <b>Java and Python automation scripts</b> to streamline common IT workflows including password resets and account provisioning, reducing Level 1 ticket volume by 35%.",
-        "Maintained and optimised <b>network infrastructure</b> including DNS, DHCP, VPN, and LAN/WAN configurations, supporting reliable connectivity for distributed and remote users.",
-        "Administered <b>Microsoft 365, SharePoint, and Teams</b> environments, supporting collaboration tools, licence management, and endpoint security policy enforcement.",
-        "Worked with <b>PostgreSQL and MySQL databases</b> to run diagnostic queries, support internal tooling, and maintain data integrity across IT operations platforms.",
-        "Contributed to <b>CI/CD pipeline maintenance</b> and backend deployments using Java Spring Boot, bridging IT operations and software engineering to support DevOps practices.",
+        "Provided <b>Tier 1/2 IT support</b> across 500+ end-users, resolving hardware, software, network, and account management issues through ServiceNow ticketing within SLA.",
+        "Managed <b>Active Directory, O365, and Azure AD</b> user accounts including onboarding, access provisioning, group policy management, and offboarding.",
+        "Diagnosed and resolved <b>Windows 10/11 and macOS desktop issues</b> including OS configuration, software installations, driver conflicts, and network connectivity problems.",
+        "Supported <b>network infrastructure troubleshooting</b> including LAN/WAN connectivity, VPN access, printer configuration, and wireless network issues.",
+        "Developed <b>Python and PowerShell automation scripts</b> for repetitive IT tasks including user provisioning, patch status reporting, and disk cleanup, saving 5+ hours weekly.",
+        "Maintained <b>hardware asset inventory</b> using CMDB tools, tracking equipment lifecycle, warranty status, and patch compliance across the estate.",
+        "Collaborated with infrastructure and security teams for <b>patch management and antivirus deployment</b>, ensuring 100% endpoint compliance across managed devices.",
+        "Documented technical procedures, known-error resolutions, and escalation paths in <b>Confluence knowledge base</b>, reducing resolution time for recurring issues by 30%.",
     ],
     "skills": [
-        "<b>IT Support</b>  –  Level 1/2 support, Active Directory, Azure AD, ServiceNow, ITIL, SLA management.",
-        "<b>Operating Systems</b>  –  Windows Server (2016/2019), Linux (Ubuntu, CentOS), macOS.",
-        "<b>Networking</b>  –  TCP/IP, DNS, DHCP, VPN, LAN/WAN, network diagnostics and troubleshooting.",
-        "<b>Cloud &amp; Productivity</b>  –  Microsoft 365, Azure, Teams, SharePoint, AWS (EC2, S3).",
-        "<b>Programming &amp; Scripting</b>  –  Java, Python, Bash; automation of IT workflows and tooling.",
-        "<b>Databases</b>  –  PostgreSQL, MySQL; diagnostic queries and data integrity checks.",
-        "<b>Development Practices</b>  –  Agile/Scrum, Git, Jira, documentation, CI/CD pipeline support.",
+        "<b>Desktop Support</b>  –  Windows 10/11, macOS, Active Directory, O365, Azure AD, Group Policy.",
+        "<b>Networking</b>  –  LAN/WAN, VPN, TCP/IP, DNS, DHCP, wireless troubleshooting.",
+        "<b>ITSM &amp; Tools</b>  –  ServiceNow, Jira, Confluence; ITIL-aligned incident and change management.",
+        "<b>Scripting &amp; Automation</b>  –  Python, PowerShell, Bash; user provisioning and operational automation.",
+        "<b>Cloud &amp; Infrastructure</b>  –  AWS basics, Azure AD, virtualisation (VMware basics), Docker.",
+        "<b>Databases</b>  –  SQL queries for asset and reporting data; PostgreSQL, MySQL basics.",
+        "<b>Development Practices</b>  –  Agile/Scrum, ITIL processes, asset management, documentation.",
     ],
     "projects": [
-        ("IT Helpdesk Automation Tool (HCL Technologies)", [
-            "Developed a Java and Python-based automation tool integrated with ServiceNow via REST API to auto-resolve common Level 1 tickets including password resets and account unlocks, reducing ticket volume by 35%.",
-            "Designed automated SLA monitoring and escalation workflows, alerting engineers before breach thresholds and improving overall SLA compliance from 88% to 95%.",
+        ("IT Support Automation & Ticketing Improvement (HCL Technologies)", [
+            "Developed Python and PowerShell scripts to automate user onboarding and offboarding in Active Directory, reducing provisioning time from 2 hours to under 10 minutes.",
+            "Built a ServiceNow dashboard tracking SLA compliance and ticket ageing, enabling the support manager to identify bottlenecks and improve first-call resolution by 25%.",
         ]),
-        ("Endpoint Monitoring Dashboard (HCL Technologies)", [
-            "Built an internal monitoring dashboard using Python and PostgreSQL to track endpoint health and uptime across 200+ devices, alerting the IT team to issues proactively.",
-            "Configured automated health-check scripts with Bash and Cron, reducing undetected outage duration by 50% and improving visibility of the endpoint estate.",
+        ("Asset Management & Patch Compliance Initiative (HCL Technologies)", [
+            "Designed and maintained CMDB asset records for 500+ endpoints, implementing automated patch status reporting that improved compliance visibility for the security team.",
+            "Wrote Bash scripts to automate disk cleanup and log rotation on Linux servers, recovering 30% disk space and reducing performance-related tickets.",
         ]),
     ],
 },
-}
-
-CONTENT["qa_testing"] = {
+"sre_devops": {
     "bullets": [
-        "Designed, created, executed, and maintained <b>structured test cases</b> covering functional, regression, integration, and smoke testing across enterprise Java and Python-based applications, identifying and logging defects with clear reproduction steps.",
-        "Contributed to the development of <b>test plans, test scripts, and test management documentation</b>, ensuring traceability between requirements, test coverage, and defect resolution throughout the project lifecycle.",
-        "Performed <b>pre-release smoke testing and health-validation checks</b> triggered post-deployment, catching 80% of configuration-related defects before reaching end users and reducing production incident rates significantly.",
-        "Logged, tracked, and supported the resolution of defects using <b>Jira</b>, maintaining accurate defect status reporting and communicating testing progress, risks, and outcomes to the project team and stakeholders through clear written reports.",
-        "Executed <b>User Acceptance Testing (UAT) activities</b> in collaboration with business stakeholders, validating that delivered features met agreed functional requirements and contributing to formal sign-off processes.",
-        "Developed <b>Python and SQL-based automated test scripts</b> to validate data integrity, API responses, and system behaviour, reducing manual regression effort by 35% and improving test repeatability across release cycles.",
-        "Worked with <b>PostgreSQL, MySQL, and Oracle databases</b> to perform data validation testing, verify query outputs, and ensure data integrity across integrated systems in support of end-to-end testing activities.",
-        "Collaborated with development, infrastructure, and business teams in an <b>Agile/Scrum</b> environment to understand requirements, clarify acceptance criteria, and deliver comprehensive test coverage aligned with sprint goals.",
+        "Managed and monitored production infrastructure on <b>AWS (EC2, S3, CloudWatch, Lambda, RDS)</b>, ensuring 99.9%+ service availability and proactive SLA compliance through alert-driven incident response.",
+        "Developed <b>Python and Shell automation scripts</b> for operational tasks including health checks, log aggregation, auto-recovery, and deployment validation, reducing manual effort by <b>60%</b>.",
+        "Supported <b>CI/CD pipeline operations using Jenkins and Git</b>, contributing to automated build, test, and deployment workflows that reduced release lead time by 30%.",
+        "Monitored distributed systems using <b>Splunk, Dynatrace, and CloudWatch</b>; built observability dashboards tracking error rates, latency, and throughput to detect degradation before SLA breach.",
+        "Participated in <b>on-call incident response</b>, performing structured triage, root cause analysis (RCA), and post-incident reviews to reduce recurring P1/P2 incident frequency by 45%.",
+        "Applied <b>containerisation with Docker</b> and contributed to Kubernetes-based service deployments, ensuring consistent application behaviour across dev, staging, and production environments.",
+        "Worked with development and QA teams in <b>Agile/Scrum</b> ceremonies to implement reliability improvements, define SLI/SLO targets, and drive platform stability initiatives.",
+        "Maintained infrastructure runbooks and incident playbooks in <b>Confluence</b>, improving team onboarding and reducing time-to-resolve for known failure patterns by 35%.",
     ],
     "skills": [
-        "<b>Testing Types</b>  –  Functional, regression, integration, smoke, performance, and User Acceptance Testing (UAT).",
-        "<b>Test Management</b>  –  Test plan creation, test case design, execution tracking, defect logging, and test summary reporting.",
-        "<b>Defect &amp; Project Tools</b>  –  Jira, Confluence; defect lifecycle management, RAID/RACI tracking, stakeholder reporting.",
-        "<b>Test Automation</b>  –  Python scripting for automated test execution, SQL-based data validation, API testing.",
-        "<b>Databases</b>  –  PostgreSQL, MySQL, Oracle; data integrity checks, query validation, and test data management.",
-        "<b>Programming Languages</b>  –  Python, SQL, Java, Bash; used for scripting and test automation tooling.",
-        "<b>Development Practices</b>  –  Agile/Scrum, Git, CI/CD pipeline testing, pre-release validation, documentation.",
+        "<b>Cloud &amp; Infrastructure</b>  –  AWS (EC2, S3, Lambda, RDS, CloudWatch, IAM, VPC), Docker, Kubernetes basics.",
+        "<b>Monitoring &amp; Observability</b>  –  Splunk, CloudWatch, Dynatrace, Grafana, Prometheus basics, PagerDuty.",
+        "<b>Scripting &amp; Automation</b>  –  Python, Bash/Shell scripting, cron jobs, automated health checks and recovery.",
+        "<b>CI/CD &amp; DevOps</b>  –  Jenkins, Git, automated pipelines, build/test/deploy workflows.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, Oracle; operational queries, schema migrations, performance tuning.",
+        "<b>SRE Practices</b>  –  SLI/SLO/SLA management, incident response, RCA, runbook authoring, on-call.",
+        "<b>Development</b>  –  Java Spring Boot, REST APIs, application debugging, log analysis.",
+    ],
+    "projects": [
+        ("Production Reliability & Incident Automation (HCL Technologies)", [
+            "Designed Python-based automated health-check and self-healing scripts reducing manual incident intervention by 60%, maintaining 99.5% SLA compliance across 15+ enterprise services.",
+            "Built a Splunk alerting framework with custom dashboards tracking error rates, queue depths, and service latency, enabling proactive degradation detection before user impact.",
+            "Participated in on-call rotation and war-room incident coordination, contributing structured RCA documentation that reduced repeat incident occurrence by 45%.",
+        ]),
+        ("AWS Infrastructure Monitoring & Reliability (HCL Technologies)", [
+            "Configured CloudWatch alarms and dashboards across EC2, RDS, and application tiers for proactive detection of resource contention and service degradation.",
+            "Automated deployment validation checks using Python and Jenkins post-deploy hooks, catching 80% of configuration-related production issues before user impact.",
+        ]),
+    ],
+},
+"qa_testing": {
+    "bullets": [
+        "Designed, created, executed, and maintained <b>structured test cases</b> covering functional, regression, integration, and smoke testing for enterprise Java and Python applications in Agile sprint cycles.",
+        "Contributed to the development of <b>test plans, test scripts, and test management documentation</b> using Jira and Confluence, ensuring full traceability from requirements to test execution.",
+        "Performed <b>pre-release smoke testing and health-validation checks</b> across development, staging, and production environments, catching critical defects before deployment sign-off.",
+        "Logged, tracked, and supported the resolution of defects using <b>Jira</b>, collaborating with development teams to reproduce issues, validate fixes, and confirm closure.",
+        "Executed <b>User Acceptance Testing (UAT) activities</b> in coordination with business stakeholders, translating acceptance criteria into structured test scenarios and sign-off documentation.",
+        "Developed <b>Python and SQL-based automated test scripts</b> for regression and data validation testing, reducing manual test execution effort by 40% across release cycles.",
+        "Worked with <b>PostgreSQL, MySQL, and Oracle databases</b> to perform data validation testing, executing backend queries to verify data integrity across application workflows.",
+        "Collaborated with development, infrastructure, and business teams in an <b>Agile/Scrum</b> environment, participating in sprint planning, retrospectives, and defect triage sessions.",
+    ],
+    "skills": [
+        "<b>Testing Types</b>  –  Functional, regression, integration, smoke, UAT; manual and automated testing.",
+        "<b>Test Management</b>  –  Jira, Confluence, Zephyr; test planning, execution tracking, defect lifecycle.",
+        "<b>Test Automation</b>  –  Python (pytest, unittest), SQL-based data validation, API testing with Postman.",
+        "<b>Databases</b>  –  PostgreSQL, MySQL, Oracle; data validation queries, backend test verification.",
+        "<b>Development Practices</b>  –  Agile/Scrum, test case design, defect reporting, requirements traceability.",
+        "<b>API Testing</b>  –  REST API validation with Postman and Python requests; response schema verification.",
+        "<b>Tools &amp; Environment</b>  –  Git, Jenkins CI/CD, Docker (test environments), AWS basics.",
     ],
     "projects": [
         ("Pre-Release Test Automation Framework (HCL Technologies)", [
-            "Designed and implemented a Python-based automated pre-release testing suite integrated with CI/CD pipelines, executing health-validation checks and smoke tests post-deployment and catching 80% of configuration defects before user impact.",
-            "Developed structured test scripts covering API response validation, database integrity checks, and end-to-end workflow verification, reducing manual regression effort by 35% across release cycles.",
-            "Maintained test execution evidence and produced weekly test summary reports communicated to project leads and stakeholders, ensuring clear visibility of defect status and release readiness.",
+            "Designed and implemented a Python-based automated regression test suite covering 200+ test cases for enterprise Java applications, reducing manual regression effort by 40% per release cycle.",
+            "Integrated test execution into Jenkins CI/CD pipelines, enabling automated test runs on every build and providing immediate feedback to development teams on regression failures.",
+            "Maintained Jira-based defect tracking and test execution dashboards, improving defect resolution turnaround by 30% through clear reporting and traceability.",
         ]),
         ("Defect Analysis & Data Validation Testing (HCL Technologies)", [
-            "Designed and executed SQL-based data validation test cases across PostgreSQL and Oracle environments, identifying data integrity issues and logging defects with full reproduction steps and impact analysis.",
-            "Collaborated with development and business teams in Agile sprints to review requirements, define acceptance criteria, and contribute to UAT execution and formal sign-off activities for enterprise application features.",
+            "Performed systematic data validation testing using SQL queries against PostgreSQL and Oracle databases, verifying data integrity across 10+ application workflows and reporting pipelines.",
+            "Executed UAT sessions with business stakeholders, translating acceptance criteria into 150+ test scenarios and managing sign-off documentation for 3 major product releases.",
         ]),
     ],
-}
-
-CONTENT["sre_devops"] = {
-    "bullets": [
-        "Managed <b>end-to-end production incident response</b> across mission-critical AWS-hosted enterprise applications, achieving average MTTR under 30 minutes and maintaining <b>99.9% system availability</b> against defined SLIs, SLOs, and SLA targets.",
-        "Performed <b>root cause analysis (RCA)</b> on P1/P2 production incidents using CloudWatch log analysis, distributed tracing, and query profiling, producing actionable remediation plans and post-mortem documentation to prevent recurrence.",
-        "Supported <b>AWS cloud infrastructure</b> operations including EC2, S3, VPC, IAM, RDS, and CloudWatch, assisting with environment configuration, access management, and resource health monitoring.",
-        "Developed <b>automated monitoring and alerting solutions</b> using Grafana, CloudWatch, and PagerDuty, reducing false-positive alert noise by 40% and improving incident detection accuracy across distributed services.",
-        "Collaborated with development teams in an <b>Agile/DevOps</b> environment to support <b>CI/CD pipelines</b> for automated build, test, and deployment processes, contributing to pre-release smoke testing and deployment validation checks.",
-        "Supported <b>Docker-containerised application deployments</b> and assisted with Kubernetes-based service management, contributing to environment reliability and deployment consistency.",
-        "Wrote <b>Python and Bash automation scripts</b> to streamline operational workflows, implement health-validation checks post-deployment, and reduce toil by automating recurring manual tasks.",
-        "Maintained detailed <b>runbooks, incident logs, and operational documentation</b>, enabling knowledge transfer and reducing resolution time for recurring incident patterns by 35%.",
-    ],
-    "skills": [
-        "<b>Cloud &amp; Infrastructure</b>  –  AWS (EC2, S3, VPC, IAM, RDS, ELB, CloudWatch), Linux system administration.",
-        "<b>Monitoring &amp; Observability</b>  –  Grafana, CloudWatch, Prometheus, PagerDuty, Datadog; log analysis and SLI/SLO tracking.",
-        "<b>Containers &amp; Orchestration</b>  –  Docker, Kubernetes (EKS/AKS), container lifecycle management.",
-        "<b>CI/CD &amp; Automation</b>  –  CI/CD pipeline support, Jenkins, Git, Bash and Python scripting, IaC concepts (Terraform, CloudFormation).",
-        "<b>Incident Management</b>  –  P1/P2 response, RCA, MTTR optimisation, SLA compliance, runbook creation, on-call support.",
-        "<b>Programming &amp; Scripting</b>  –  Python, Bash, SQL; automation of operational workflows and tooling.",
-        "<b>Development Practices</b>  –  ITIL, Agile/DevOps, Git, Jira, post-mortem documentation.",
-    ],
-    "projects": [
-        ("Production Incident Automation Framework (HCL Technologies)", [
-            "Built a Python-based incident automation tool integrated with PagerDuty and Jira, auto-creating tickets, assigning on-call engineers, and populating RCA templates — reducing manual overhead by 40% per incident.",
-            "Implemented automated pre-checks and health-validation scripts triggered post-deployment, catching 80% of configuration-related production issues before user impact.",
-            "Developed a Grafana dashboard consolidating application health, error rates, and SLA metrics, enabling the support team to identify degradation trends within minutes of occurrence.",
-        ]),
-        ("AWS Infrastructure Monitoring & Reliability (HCL Technologies)", [
-            "Configured CloudWatch alarms and dashboards across EC2, RDS, and application tiers, enabling proactive detection of resource contention and service degradation.",
-            "Supported on-call incident rotation, contributing to structured war-room coordination during major outages and driving resolution through systematic root cause analysis and cross-functional collaboration.",
-        ]),
-    ],
-}
-
-CONTENT["frontend"] = {
+},
+"frontend": {
     "bullets": [
         "Built and maintained <b>responsive React and Angular web applications</b>, implementing reusable component libraries and state management patterns that improved development consistency and reduced UI build time by <b>25%</b>.",
         "Developed <b>TypeScript and JavaScript (ES6+)</b> frontend features integrating with Java Spring Boot REST APIs, ensuring reliable data flows and clean separation of concerns across full-stack application layers.",
@@ -388,8 +431,12 @@ CONTENT["frontend"] = {
             "Configured frontend CI/CD pipeline with Jenkins for automated build, lint, test, and deployment to staging, ensuring reliable and reproducible releases.",
         ]),
     ],
+},
 }
 
+# ═══════════════════════════════════════════════════════════════════
+# STATIC FALLBACK: role key picker
+# ═══════════════════════════════════════════════════════════════════
 def get_role_key(category, title=""):
     cat   = category.lower()
     title = title.lower()
@@ -419,6 +466,140 @@ def get_role_key(category, title=""):
     if "full stack" in cat:                                  return "full_stack"
     return "java"
 
+def slug(text):
+    text = re.sub(r"[^a-z0-9\s]", "", text.lower().strip())
+    return re.sub(r"\s+", "_", text)[:40]
+
+# ═══════════════════════════════════════════════════════════════════
+# AI-TAILORED GENERATION  (primary path)
+# ═══════════════════════════════════════════════════════════════════
+
+def _ai_available():
+    return _ANTHROPIC_AVAILABLE and bool(ANTHROPIC_API_KEY)
+
+
+def generate_ai_content(job, retry=2):
+    """
+    Call Claude (Haiku) to generate resume bullets/skills/projects tailored
+    ~75-80% to the job's description (or title+company when no description).
+
+    Returns (bullets, skills, projects_list) where projects_list is a list of
+    (title_str, [bullet_str, ...]) tuples — same format as the static CONTENT banks.
+
+    Raises on unrecoverable error so the caller can fall back to static.
+    """
+    client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    title       = job.get("title", "")
+    company     = job.get("company", "")
+    category    = job.get("category", "")
+    description = (job.get("description") or "").strip()
+
+    if description:
+        jd_block = f"""Full Job Description (use this to tailor content):
+---
+{description[:4000]}
+---"""
+    else:
+        jd_block = (
+            f"No full job description available. "
+            f"Infer requirements from: Title='{title}', Company='{company}', "
+            f"Role category='{category}'."
+        )
+
+    prompt = f"""You are writing resume content for a software engineer applying for a specific job.
+
+CANDIDATE PROFILE:
+{HARI_PROFILE}
+
+TARGET ROLE:
+  Title   : {title}
+  Company : {company}
+  Category: {category}
+
+{jd_block}
+
+INSTRUCTIONS:
+1. Generate content that authentically represents Hari's background while matching
+   approximately 75-80% of what this role requires.
+2. Do NOT invent technologies or seniority he doesn't have. Stretch plausibly — e.g.
+   frame production support as reliability engineering; frame ETL as data engineering.
+3. Use keywords from the job description naturally in bullets and skills.
+4. Bullets must use <b>bold</b> tags around key technologies/achievements (HTML).
+5. Skill lines must follow this exact format:
+   "<b>Category Name</b>  –  item1, item2, item3."
+
+Return ONLY a valid JSON object with this exact structure (no markdown fences):
+{{
+  "bullets": [
+    "Bullet 1 with <b>bold tech</b> and a metric like <b>25%</b>...",
+    "Bullet 2...",
+    "Bullet 3...",
+    "Bullet 4...",
+    "Bullet 5...",
+    "Bullet 6..."
+  ],
+  "skills": [
+    "<b>Category</b>  –  skill1, skill2, skill3.",
+    "<b>Category</b>  –  skill1, skill2.",
+    "<b>Category</b>  –  skill1, skill2, skill3."
+  ],
+  "projects": [
+    {{
+      "title": "Project Name (HCL Technologies)",
+      "bullets": [
+        "Project bullet 1...",
+        "Project bullet 2...",
+        "Project bullet 3..."
+      ]
+    }},
+    {{
+      "title": "Project Name 2 (HCL Technologies)",
+      "bullets": [
+        "Project bullet 1...",
+        "Project bullet 2..."
+      ]
+    }}
+  ]
+}}
+
+Requirements: exactly 6 experience bullets, 5-7 skill lines, exactly 2 projects."""
+
+    for attempt in range(retry + 1):
+        try:
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2048,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = response.content[0].text.strip()
+
+            # Strip markdown code fences if Claude adds them
+            if raw.startswith("```"):
+                raw = re.sub(r"^```[a-z]*\n?", "", raw)
+                raw = re.sub(r"\n?```$", "", raw.rstrip())
+
+            data     = json.loads(raw)
+            bullets  = data["bullets"]
+            skills   = data["skills"]
+            projects = [(p["title"], p["bullets"]) for p in data["projects"]]
+            return bullets, skills, projects
+
+        except (json.JSONDecodeError, KeyError) as e:
+            if attempt < retry:
+                time.sleep(2)
+                continue
+            raise RuntimeError(f"AI content parse failed after {retry+1} attempts: {e}")
+        except Exception as e:
+            if attempt < retry:
+                time.sleep(3)
+                continue
+            raise RuntimeError(f"AI API call failed: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# PDF LAYOUT (unchanged)
+# ═══════════════════════════════════════════════════════════════════
 def make_resume(filename, exp_bullets, skills, proj_list, certs):
     doc = SimpleDocTemplate(filename, pagesize=A4,
         leftMargin=1.8*cm, rightMargin=1.8*cm,
@@ -488,8 +669,17 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
 
     doc.build(story)
 
-def generate_for_jobs(jobs_to_generate=None):
-    """Generate PDFs. If jobs_to_generate is None, process all jobs in jobs.json."""
+
+# ═══════════════════════════════════════════════════════════════════
+# MAIN ENTRY POINT
+# ═══════════════════════════════════════════════════════════════════
+def generate_for_jobs(jobs_to_generate=None, force_regen=False):
+    """
+    Generate PDFs for the given list of jobs (or all jobs in jobs.json).
+
+    force_regen=True  → delete existing PDF and regenerate (used when a JD was
+                        just fetched and we want to upgrade from the static template).
+    """
     if not os.path.exists(JOBS_FILE):
         print("No jobs.json found — run search_jobs.py first.")
         return
@@ -497,28 +687,55 @@ def generate_for_jobs(jobs_to_generate=None):
     with open(JOBS_FILE) as f:
         all_jobs = json.load(f)
 
-    if jobs_to_generate is not None:
-        targets = jobs_to_generate
-    else:
-        targets = all_jobs
+    targets = jobs_to_generate if jobs_to_generate is not None else all_jobs
 
-    generated = skipped = errors = 0
+    use_ai = _ai_available()
+    if use_ai:
+        print(f"  🤖  AI-tailored generation enabled (claude-haiku-4-5-20251001)")
+    else:
+        print(f"  📋  Using static templates (set ANTHROPIC_API_KEY to enable AI generation)")
+
+    generated = skipped = errors = ai_ok = ai_fallback = 0
+
     for job in targets:
         fname = os.path.join(RESUME_DIR, job["resume"])
-        if os.path.exists(fname):
+
+        if os.path.exists(fname) and not force_regen:
             skipped += 1
             continue
-        rk   = get_role_key(job.get("category", "java"), job.get("title", ""))
-        data = CONTENT[rk]
+
+        # ── Try AI path first ──────────────────────────────────────
+        bullets = skills = projects = None
+        if use_ai:
+            try:
+                bullets, skills, projects = generate_ai_content(job)
+                ai_ok += 1
+                print(f"  ✓  [AI]  {job['company']} — {job['title']}")
+            except Exception as e:
+                print(f"  ⚠  [AI fallback]  {job['company']} — {job['title']}  ({e})")
+                ai_fallback += 1
+
+        # ── Static fallback ────────────────────────────────────────
+        if bullets is None:
+            rk       = get_role_key(job.get("category", "java"), job.get("title", ""))
+            data     = CONTENT[rk]
+            bullets  = data["bullets"]
+            skills   = data["skills"]
+            projects = data["projects"]
+            if not use_ai:
+                print(f"  ✓  [tmpl] {job['company']} — {job['title']}")
+
         try:
-            make_resume(fname, data["bullets"], data["skills"], data["projects"], CERTS)
-            print(f"  ✓  {job['company']} — {job['title']}")
+            make_resume(fname, bullets, skills, projects, CERTS)
             generated += 1
         except Exception as e:
             print(f"  ✗  {job['company']} — {job['title']}  ERROR: {e}")
             errors += 1
 
-    print(f"\n✅  Generated: {generated}  |  Skipped (exists): {skipped}  |  Errors: {errors}")
+    print(f"\n✅  Generated: {generated}  |  Skipped: {skipped}  |  Errors: {errors}")
+    if use_ai:
+        print(f"    AI success: {ai_ok}  |  Fell back to template: {ai_fallback}")
+
 
 if __name__ == "__main__":
     generate_for_jobs()

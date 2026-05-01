@@ -191,9 +191,12 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
             company = (item.get("company_name") or item.get("company") or "").strip()
             loc     = (item.get("job_location") or item.get("location") or "Ireland").strip()
             url     = item.get("job_url") or item.get("url") or ""
+            desc    = (item.get("description") or item.get("job_description") or
+                       item.get("jobDescription") or item.get("snippet") or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
-                             "location": loc, "source": "LinkedIn", "url": url})
+                             "location": loc, "source": "LinkedIn", "url": url,
+                             "description": desc[:6000] if desc else ""})
         print(f"        LinkedIn   → {len(jobs)} results")
         return jobs
     except Exception as e:
@@ -223,9 +226,12 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
             company = (item.get("company") or item.get("companyName") or "").strip()
             loc     = (item.get("location") or "Ireland").strip()
             url     = item.get("url") or item.get("jobUrl") or ""
+            desc    = (item.get("description") or item.get("jobDescription") or
+                       item.get("snippet") or item.get("summary") or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
-                             "location": loc, "source": "Indeed", "url": url})
+                             "location": loc, "source": "Indeed", "url": url,
+                             "description": desc[:6000] if desc else ""})
         print(f"        Indeed     → {len(jobs)} results")
         return jobs
     except Exception as e:
@@ -254,9 +260,12 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
             company = (item.get("employer") or item.get("company") or item.get("companyName") or "").strip()
             loc     = (item.get("location") or "Ireland").strip()
             url     = item.get("jobUrl") or item.get("url") or ""
+            desc    = (item.get("description") or item.get("jobDescription") or
+                       item.get("jobDescriptionText") or item.get("snippet") or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
-                             "location": loc, "source": "Glassdoor", "url": url})
+                             "location": loc, "source": "Glassdoor", "url": url,
+                             "description": desc[:6000] if desc else ""})
         print(f"        Glassdoor  → {len(jobs)} results")
         return jobs
     except Exception as e:
@@ -285,9 +294,12 @@ def search_irishjobs(client, query, max_results=RESULTS_PER_QUERY):
             company = (item.get("company") or item.get("companyName") or "").strip()
             loc     = (item.get("location") or "Ireland").strip()
             url     = item.get("url") or item.get("jobUrl") or ""
+            desc    = (item.get("description") or item.get("jobDescription") or
+                       item.get("fullDescription") or item.get("summary") or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
-                             "location": loc, "source": "IrishJobs", "url": url})
+                             "location": loc, "source": "IrishJobs", "url": url,
+                             "description": desc[:6000] if desc else ""})
         print(f"        IrishJobs  → {len(jobs)} results")
         return jobs
     except Exception as e:
@@ -391,7 +403,7 @@ def make_entry(r, category, next_num):
             url = f"https://www.jobs.ie/jobs/{title.replace(' ', '-')}/ireland/"
         else:
             url = f"https://www.linkedin.com/jobs/search/?keywords={title.replace(' ', '%20')}&location=Ireland"
-    return {
+    entry = {
         "id":        job_id(company, title),
         "num":       next_num,
         "category":  category,
@@ -405,6 +417,11 @@ def make_entry(r, category, next_num):
         "status":    "Not Applied",
         "added":     datetime.now().strftime("%Y-%m-%d"),
     }
+    # Capture job description if the scraper returned one
+    desc = r.get("description", "").strip()
+    if desc:
+        entry["description"] = desc
+    return entry
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
