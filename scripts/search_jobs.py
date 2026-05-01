@@ -150,11 +150,16 @@ def slug(text):
 def job_id(company, title):
     return hashlib.md5(f"{slug(company)}_{slug(title)}".encode()).hexdigest()[:10]
 
+# ── Safe string extractor (guards against scrapers returning dicts) ────────────
+def _s(val):
+    """Return val if it's a non-empty string, otherwise ''."""
+    return val if isinstance(val, str) else ""
+
 # ── Apify RAG browser (fallback for sites without dedicated actors) ────────────
-def rag_fetch(client, url, timeout=120):
+def rag_fetch(client, url, query="software engineer ireland", timeout=120):
     try:
         run   = client.actor("apify/rag-web-browser").call(
-            run_input={"startUrls": [{"url": url}], "maxResults": 1},
+            run_input={"startUrls": [{"url": url}], "maxResults": 1, "query": query},
             timeout_secs=timeout,
         )
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
@@ -191,8 +196,8 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
             company = (item.get("company_name") or item.get("company") or "").strip()
             loc     = (item.get("job_location") or item.get("location") or "Ireland").strip()
             url     = item.get("job_url") or item.get("url") or ""
-            desc    = (item.get("description") or item.get("job_description") or
-                       item.get("jobDescription") or item.get("snippet") or "").strip()
+            desc    = (_s(item.get("description")) or _s(item.get("job_description")) or
+                       _s(item.get("jobDescription")) or _s(item.get("snippet")) or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
                              "location": loc, "source": "LinkedIn", "url": url,
@@ -226,8 +231,8 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
             company = (item.get("company") or item.get("companyName") or "").strip()
             loc     = (item.get("location") or "Ireland").strip()
             url     = item.get("url") or item.get("jobUrl") or ""
-            desc    = (item.get("description") or item.get("jobDescription") or
-                       item.get("snippet") or item.get("summary") or "").strip()
+            desc    = (_s(item.get("description")) or _s(item.get("jobDescription")) or
+                       _s(item.get("snippet")) or _s(item.get("summary")) or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
                              "location": loc, "source": "Indeed", "url": url,
@@ -260,8 +265,8 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
             company = (item.get("employer") or item.get("company") or item.get("companyName") or "").strip()
             loc     = (item.get("location") or "Ireland").strip()
             url     = item.get("jobUrl") or item.get("url") or ""
-            desc    = (item.get("description") or item.get("jobDescription") or
-                       item.get("jobDescriptionText") or item.get("snippet") or "").strip()
+            desc    = (_s(item.get("description")) or _s(item.get("jobDescription")) or
+                       _s(item.get("jobDescriptionText")) or _s(item.get("snippet")) or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
                              "location": loc, "source": "Glassdoor", "url": url,
@@ -294,8 +299,8 @@ def search_irishjobs(client, query, max_results=RESULTS_PER_QUERY):
             company = (item.get("company") or item.get("companyName") or "").strip()
             loc     = (item.get("location") or "Ireland").strip()
             url     = item.get("url") or item.get("jobUrl") or ""
-            desc    = (item.get("description") or item.get("jobDescription") or
-                       item.get("fullDescription") or item.get("summary") or "").strip()
+            desc    = (_s(item.get("description")) or _s(item.get("jobDescription")) or
+                       _s(item.get("fullDescription")) or _s(item.get("summary")) or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
                              "location": loc, "source": "IrishJobs", "url": url,
@@ -308,14 +313,14 @@ def search_irishjobs(client, query, max_results=RESULTS_PER_QUERY):
 
 def _irishjobs_rag_fallback(client, query, max_results):
     url  = f"https://www.irishjobs.ie/Jobs/{query.replace(' ', '-')}?JobCategoryId=2,3,5,11"
-    text = rag_fetch(client, url)
+    text = rag_fetch(client, url, query=query)
     return _parse_generic(text, "IrishJobs", max_results)
 
 # ── 5. Jobs.ie — RAG browser (no dedicated actor) ────────────────────────────
 def search_jobsie(client, query, max_results=RESULTS_PER_QUERY):
     terms = query.replace(" ireland", "").replace(" ", "-")
     url   = f"https://www.jobs.ie/jobs/{terms}/ireland/"
-    text  = rag_fetch(client, url)
+    text  = rag_fetch(client, url, query=query)
     jobs  = _parse_generic(text, "Jobs.ie", max_results)
     print(f"        Jobs.ie    → {len(jobs)} results")
     return jobs
@@ -369,7 +374,7 @@ def parse_company_page(text, company, max_results=10):
 
 def search_company_careers(client, company, url, category):
     print(f"    🏢  {company} careers page...")
-    text = rag_fetch(client, url, timeout=90)
+    text = rag_fetch(client, url, query=f"software engineer {company} ireland", timeout=90)
     jobs = parse_company_page(text, company, max_results=10)
     print(f"        {company}  → {len(jobs)} results")
     return jobs, category
@@ -418,7 +423,7 @@ def make_entry(r, category, next_num):
         "added":     datetime.now().strftime("%Y-%m-%d"),
     }
     # Capture job description if the scraper returned one
-    desc = r.get("description", "").strip()
+    desc = _s(r.get("description", "")).strip()
     if desc:
         entry["description"] = desc
     return entry
