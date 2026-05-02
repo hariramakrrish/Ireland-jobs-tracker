@@ -192,9 +192,9 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         jobs  = []
         for item in items:
-            title   = (item.get("job_title") or item.get("title") or "").strip()
-            company = (item.get("company_name") or item.get("company") or "").strip()
-            loc     = (item.get("job_location") or item.get("location") or "Ireland").strip()
+            title   = (_s(item.get("job_title")) or _s(item.get("title")) or "").strip()
+            company = (_s(item.get("company_name")) or _s(item.get("company")) or "").strip()
+            loc     = (_s(item.get("job_location")) or _s(item.get("location")) or "Ireland").strip()
             url     = item.get("job_url") or item.get("url") or ""
             desc    = (_s(item.get("description")) or _s(item.get("job_description")) or
                        _s(item.get("jobDescription")) or _s(item.get("snippet")) or "").strip()
@@ -227,9 +227,9 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         jobs  = []
         for item in items:
-            title   = (item.get("title") or item.get("positionName") or "").strip()
-            company = (item.get("company") or item.get("companyName") or "").strip()
-            loc     = (item.get("location") or "Ireland").strip()
+            title   = (_s(item.get("title")) or _s(item.get("positionName")) or "").strip()
+            company = (_s(item.get("company")) or _s(item.get("companyName")) or "").strip()
+            loc     = (_s(item.get("location")) or "Ireland").strip()
             url     = item.get("url") or item.get("jobUrl") or ""
             desc    = (_s(item.get("description")) or _s(item.get("jobDescription")) or
                        _s(item.get("snippet")) or _s(item.get("summary")) or "").strip()
@@ -261,9 +261,10 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         jobs  = []
         for item in items:
-            title   = (item.get("jobTitle") or item.get("title") or "").strip()
-            company = (item.get("employer") or item.get("company") or item.get("companyName") or "").strip()
-            loc     = (item.get("location") or "Ireland").strip()
+            title   = (_s(item.get("jobTitle")) or _s(item.get("title")) or "").strip()
+            _emp = item.get("employer") or item.get("company") or item.get("companyName") or ""
+            company = (_emp.get("name", "") if isinstance(_emp, dict) else _s(_emp)).strip()
+            loc     = (_s(item.get("location")) or "Ireland").strip()
             url     = item.get("jobUrl") or item.get("url") or ""
             desc    = (_s(item.get("description")) or _s(item.get("jobDescription")) or
                        _s(item.get("jobDescriptionText")) or _s(item.get("snippet")) or "").strip()
@@ -295,9 +296,9 @@ def search_irishjobs(client, query, max_results=RESULTS_PER_QUERY):
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         jobs  = []
         for item in items:
-            title   = (item.get("title") or item.get("jobTitle") or "").strip()
-            company = (item.get("company") or item.get("companyName") or "").strip()
-            loc     = (item.get("location") or "Ireland").strip()
+            title   = (_s(item.get("title")) or _s(item.get("jobTitle")) or "").strip()
+            company = (_s(item.get("company")) or _s(item.get("companyName")) or "").strip()
+            loc     = (_s(item.get("location")) or "Ireland").strip()
             url     = item.get("url") or item.get("jobUrl") or ""
             desc    = (_s(item.get("description")) or _s(item.get("jobDescription")) or
                        _s(item.get("fullDescription")) or _s(item.get("summary")) or "").strip()
