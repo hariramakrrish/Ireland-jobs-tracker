@@ -57,8 +57,8 @@ Work Experience (3.5 years total):
     • Linux — log analysis, shell scripting, cron jobs
 
 Education:
-  • MSc Data Analytics — National College of Ireland, Dublin (Feb 2026)
-  • BEng Computer Science — SNS College of Technology, Coimbatore, India (2021)
+  • MSc in Data Analytics — National College of Ireland, Dublin (COMPLETED Feb 2026)
+  • Bachelor of Engineering (BE) in Computer Science — SNS College of Technology, Coimbatore, India (2021)
 
 Certifications:
   • IELTS Academic: Band 7/9
@@ -528,6 +528,12 @@ INSTRUCTIONS:
 4. Bullets must use <b>bold</b> tags around key technologies/achievements (HTML).
 5. Skill lines must follow this exact format:
    "<b>Category Name</b>  –  item1, item2, item3."
+6. CRITICAL — Education: Hari's MSc is COMPLETED (Feb 2026). NEVER write "in progress",
+   "currently pursuing", "currently completing", or any similar phrase. It is done.
+7. CRITICAL — Never use the abbreviation "BEng". If you mention the degree, write
+   "Bachelor of Engineering" or "BE" in full.
+8. CRITICAL — Never use the word "Foundational" anywhere (e.g. not "Angular (Foundational)"
+   or "Frontend (Foundational)"). Just write the skill name without qualifiers.
 
 Return ONLY a valid JSON object with this exact structure (no markdown fences):
 {{
