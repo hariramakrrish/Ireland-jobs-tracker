@@ -205,7 +205,9 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
         print(f"        LinkedIn   → {len(jobs)} results")
         return jobs
     except Exception as e:
+        import traceback
         print(f"        ⚠  LinkedIn scraper failed ('{query}'): {e}")
+        traceback.print_exc()
         return []
 
 # ── 2. Indeed IE — valig/indeed-jobs-scraper (99.8% success) ─────────────────
@@ -240,7 +242,9 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
         print(f"        Indeed     → {len(jobs)} results")
         return jobs
     except Exception as e:
+        import traceback
         print(f"        ⚠  Indeed scraper failed ('{query}'): {e}")
+        traceback.print_exc()
         return []
 
 # ── 3. Glassdoor — valig/glassdoor-jobs-scraper (99.9% success) ──────────────
@@ -263,7 +267,8 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
         for item in items:
             title   = (_s(item.get("jobTitle")) or _s(item.get("title")) or "").strip()
             _emp = item.get("employer") or item.get("company") or item.get("companyName") or ""
-            company = (_emp.get("name", "") if isinstance(_emp, dict) else _s(_emp)).strip()
+            _name = _emp.get("name", "") if isinstance(_emp, dict) else _emp
+            company = (_s(_name) or "").strip()
             loc     = (_s(item.get("location")) or "Ireland").strip()
             url     = item.get("jobUrl") or item.get("url") or ""
             desc    = (_s(item.get("description")) or _s(item.get("jobDescription")) or
@@ -275,7 +280,9 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
         print(f"        Glassdoor  → {len(jobs)} results")
         return jobs
     except Exception as e:
+        import traceback
         print(f"        ⚠  Glassdoor scraper failed ('{query}'): {e}")
+        traceback.print_exc()
         return []
 
 # ── 4. IrishJobs.ie — dedicated scraper ───────────────────────────────────────
@@ -309,7 +316,9 @@ def search_irishjobs(client, query, max_results=RESULTS_PER_QUERY):
         print(f"        IrishJobs  → {len(jobs)} results")
         return jobs
     except Exception as e:
+        import traceback
         print(f"        ⚠  IrishJobs scraper failed ('{query}'): {e} — trying RAG fallback")
+        traceback.print_exc()
         return _irishjobs_rag_fallback(client, query, max_results)
 
 def _irishjobs_rag_fallback(client, query, max_results):

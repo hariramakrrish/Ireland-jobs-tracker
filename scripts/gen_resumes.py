@@ -438,8 +438,8 @@ CONTENT = {
 # STATIC FALLBACK: role key picker
 # ═══════════════════════════════════════════════════════════════════
 def get_role_key(category, title=""):
-    cat   = category.lower()
-    title = title.lower()
+    cat   = (category if isinstance(category, str) else "").lower()
+    title = (title if isinstance(title, str) else "").lower()
 
     # Title-first detection for specialist roles
     if any(k in title for k in ["site reliability", "sre", "devops", "infrastructure engineer",
@@ -490,10 +490,12 @@ def generate_ai_content(job, retry=2):
     """
     client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    title       = job.get("title", "")
-    company     = job.get("company", "")
-    category    = job.get("category", "")
-    description = (job.get("description") or "").strip()
+    def _s(val):
+        return val if isinstance(val, str) else ""
+    title       = _s(job.get("title", "")).strip()
+    company     = _s(job.get("company", "")).strip()
+    category    = _s(job.get("category", "")).strip()
+    description = (_s(job.get("description")) or "").strip()
 
     if description:
         jd_block = f"""Full Job Description (use this to tailor content):
