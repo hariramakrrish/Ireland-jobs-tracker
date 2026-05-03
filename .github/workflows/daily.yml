@@ -39,9 +39,51 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Pull FIRST so any commits pushed during the 1.5-hr run are already
-          # integrated before we create our commit — avoids rebase conflicts on jobs.json
-          git pull --rebase origin main
+
+          # Fetch latest remote state (captures any manual edits made during the 1.5-hr run)
+          git fetch origin main
+
+          # Smart merge: remote jobs.json is the source of truth for statuses.
+          # Pipeline output only contributes NEW jobs not already on remote.
+          # This means manual status updates / deletions made during the run are preserved.
+          python3 - << 'PYEOF'
+import json, subprocess, sys
+
+# Pipeline-generated jobs (new + all existing from checkout 1.5h ago)
+with open("web/data/jobs.json") as f:
+    pipeline_jobs = json.load(f)
+
+# Latest remote jobs (has updated statuses, deletions, manual changes)
+result = subprocess.run(
+    ["git", "show", "origin/main:web/data/jobs.json"],
+    capture_output=True, text=True
+)
+if result.returncode != 0:
+    print("Could not read remote jobs.json — using pipeline output as-is")
+    sys.exit(0)
+
+remote_jobs = json.loads(result.stdout)
+remote_ids  = {j["id"] for j in remote_jobs}
+
+# Only keep pipeline jobs that are genuinely new (not in remote)
+new_jobs = [j for j in pipeline_jobs if j["id"] not in remote_ids]
+
+# Merged = remote (source of truth for statuses) + new pipeline jobs
+merged = remote_jobs + new_jobs
+
+# Renumber
+for i, j in enumerate(merged, 1):
+    j["num"] = i
+
+with open("web/data/jobs.json", "w") as f:
+    json.dump(merged, f, indent=2)
+
+print(f"Remote jobs: {len(remote_jobs)}, New from pipeline: {len(new_jobs)}, Total: {len(merged)}")
+PYEOF
+
+          # Move HEAD to latest remote (soft — keeps working tree intact)
+          git reset --soft origin/main
+
           git add web/data/jobs.json web/resumes/
           git diff --cached --quiet || git commit -m "chore: daily job update $(date +'%Y-%m-%d')"
           git push
