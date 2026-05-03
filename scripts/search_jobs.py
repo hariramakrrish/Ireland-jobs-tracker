@@ -338,6 +338,8 @@ def search_jobsie(client, query, max_results=RESULTS_PER_QUERY):
     return jobs
 
 def _parse_generic(text, source_name, max_results):
+    if not text:          # RAG browser returned None / empty — skip gracefully
+        return []
     jobs, seen = [], set()
     patterns = [
         r"^([A-Z][^\n]{4,79})\n([A-Z][^\n]{2,60})\n([^\n]*(?:Ireland|Dublin|Cork|Galway|Remote)[^\n]*)",
