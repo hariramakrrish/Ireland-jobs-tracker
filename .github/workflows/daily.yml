@@ -39,7 +39,9 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Pull FIRST so any commits pushed during the 1.5-hr run are already
+          # integrated before we create our commit — avoids rebase conflicts on jobs.json
+          git pull --rebase origin main
           git add web/data/jobs.json web/resumes/
           git diff --cached --quiet || git commit -m "chore: daily job update $(date +'%Y-%m-%d')"
-          git pull --rebase origin main
           git push

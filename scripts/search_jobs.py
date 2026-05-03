@@ -323,14 +323,16 @@ def search_irishjobs(client, query, max_results=RESULTS_PER_QUERY):
 
 def _irishjobs_rag_fallback(client, query, max_results):
     url  = f"https://www.irishjobs.ie/Jobs/{query.replace(' ', '-')}?JobCategoryId=2,3,5,11"
-    text = rag_fetch(client, url, query=query)
+    # Use site: prefix so Google returns irishjobs.ie results, not indeed.com
+    text = rag_fetch(client, url, query=f"site:irishjobs.ie {query}")
     return _parse_generic(text, "IrishJobs", max_results)
 
 # ── 5. Jobs.ie — RAG browser (no dedicated actor) ────────────────────────────
 def search_jobsie(client, query, max_results=RESULTS_PER_QUERY):
     terms = query.replace(" ireland", "").replace(" ", "-")
     url   = f"https://www.jobs.ie/jobs/{terms}/ireland/"
-    text  = rag_fetch(client, url, query=query)
+    # Use site: prefix so Google returns jobs.ie results, not indeed.com (which 403s)
+    text  = rag_fetch(client, url, query=f"site:jobs.ie {query}")
     jobs  = _parse_generic(text, "Jobs.ie", max_results)
     print(f"        Jobs.ie    → {len(jobs)} results")
     return jobs
