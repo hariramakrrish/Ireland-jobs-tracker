@@ -2,8 +2,8 @@ name: Daily Job Search & Resume Generator
 
 on:
   schedule:
-    - cron: '0 7 * * *'      # 07:00 UTC every day (08:00 IST / 08:00 Ireland summer)
-  workflow_dispatch:           # also allows manual trigger from GitHub UI
+    - cron: '0 7 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -40,79 +40,30 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Save a copy of the pipeline-generated jobs.json before any git resets
           cp web/data/jobs.json /tmp/pipeline_jobs.json
 
-          # Retry loop: handles the race where status-update commits land during the 35-min run
           MAX_ATTEMPTS=5
           attempt=0
           while [ $attempt -lt $MAX_ATTEMPTS ]; do
             attempt=$((attempt + 1))
             echo "--- Push attempt $attempt of $MAX_ATTEMPTS ---"
-
-            # Always fetch the very latest remote state
             git fetch origin main
-
-            # Smart merge: remote jobs.json is the source of truth for statuses.
-            # Pipeline output only contributes NEW jobs not already on remote.
-            python3 - << 'PYEOF'
-import json, subprocess, sys
-
-# Pipeline-generated jobs (saved before any git resets)
-with open("/tmp/pipeline_jobs.json") as f:
-    pipeline_jobs = json.load(f)
-
-# Latest remote jobs (has updated statuses, deletions, manual changes)
-result = subprocess.run(
-    ["git", "show", "origin/main:web/data/jobs.json"],
-    capture_output=True, text=True
-)
-if result.returncode != 0:
-    print("Could not read remote jobs.json — using pipeline output as-is")
-    sys.exit(0)
-
-remote_jobs = json.loads(result.stdout)
-remote_ids  = {j["id"] for j in remote_jobs}
-
-# Only keep pipeline jobs that are genuinely new (not in remote)
-new_jobs = [j for j in pipeline_jobs if j["id"] not in remote_ids]
-
-# Merged = remote (source of truth for statuses) + new pipeline jobs
-merged = remote_jobs + new_jobs
-
-# Renumber
-for i, j in enumerate(merged, 1):
-    j["num"] = i
-
-with open("web/data/jobs.json", "w") as f:
-    json.dump(merged, f, indent=2)
-
-print(f"Remote jobs: {len(remote_jobs)}, New from pipeline: {len(new_jobs)}, Total: {len(merged)}")
-PYEOF
-
-            # Move HEAD to latest remote (soft — keeps working tree intact)
+            python3 scripts/smart_merge.py
             git reset --soft origin/main
-
             git add web/data/jobs.json web/resumes/
-
-            # If nothing changed, we're done
             if git diff --cached --quiet; then
-              echo "No new data to push — done."
+              echo "No new data to push."
               exit 0
             fi
-
             git commit -m "chore: daily job update $(date +'%Y-%m-%d')"
-
-            # Try to push; if rejected (race condition), undo commit and retry
             if git push; then
               echo "Push succeeded on attempt $attempt."
               exit 0
-            else
-              echo "Push rejected — another commit landed during our run. Retrying..."
-              git reset HEAD~1   # undo the commit, keep working tree
-              sleep 3
             fi
+            echo "Push rejected — retrying..."
+            git reset HEAD~1
+            sleep 5
           done
 
-          echo "ERROR: Failed to push after $MAX_ATTEMPTS attempts."
+          echo "ERROR: could not push after $MAX_ATTEMPTS attempts."
           exit 1
