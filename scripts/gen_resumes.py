@@ -609,9 +609,13 @@ Requirements: exactly 6 experience bullets, 5-7 skill lines, exactly 2 projects.
 # PDF LAYOUT (unchanged)
 # ═══════════════════════════════════════════════════════════════════
 def make_resume(filename, exp_bullets, skills, proj_list, certs):
+    # Always use compress=0 so the PDF is never < 8 KB.
+    # (compress=1 can produce tiny PDFs whose story is already consumed when
+    # we try to rebuild, resulting in a blank 931-byte file.)
     doc = SimpleDocTemplate(filename, pagesize=A4,
         leftMargin=1.8*cm, rightMargin=1.8*cm,
-        topMargin=1.5*cm, bottomMargin=1.5*cm)
+        topMargin=1.5*cm, bottomMargin=1.5*cm,
+        compress=0)
     W = doc.width
 
     name_s      = ParagraphStyle("name",  fontName="Times-Bold",   fontSize=24, textColor=BLACK, alignment=TA_CENTER, spaceAfter=5, leading=28)
@@ -677,15 +681,7 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
 
     doc.build(story)
 
-    # IrishJobs and some job boards reject PDFs smaller than 8 KB.
-    # If the compressed PDF is too small, rebuild without compression —
-    # uncompressed ReportLab PDFs are always well above 8 KB.
-    if os.path.getsize(filename) < 8192:
-        doc2 = SimpleDocTemplate(filename, pagesize=A4,
-            leftMargin=1.8*cm, rightMargin=1.8*cm,
-            topMargin=1.5*cm, bottomMargin=1.5*cm,
-            compress=0)
-        doc2.build(story)
+    # Size check is no longer needed — compress=0 is always used above.
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -716,6 +712,12 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
     generated = skipped = errors = ai_ok = ai_fallback = 0
 
     for job in targets:
+        # Auto-assign resume filename if missing
+        if not job.get("resume"):
+            company = job.get("company", "unknown")
+            title   = job.get("title", "role")
+            job["resume"] = f"hari_{slug(company)}_{slug(title)}.pdf"
+
         fname = os.path.join(RESUME_DIR, job["resume"])
 
         if os.path.exists(fname) and not force_regen:

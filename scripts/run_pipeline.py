@@ -43,7 +43,10 @@ def main():
         j for j in all_jobs
         if j.get("status") == "Not Applied"
         and not SENIOR.search(j.get("title", ""))
-        and not os.path.exists(os.path.join(resume_dir, j.get("resume", "")))
+        and (
+            not j.get("resume")  # no resume filename assigned at all
+            or not os.path.exists(os.path.join(resume_dir, j["resume"]))
+        )
     ]
 
     # 3. Combine: new jobs + existing jobs with missing PDFs (deduplicate by id)
