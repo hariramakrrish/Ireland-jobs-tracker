@@ -1,0 +1,65 @@
+name: Regenerate All Not-Applied Resumes (AI-Tailored)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Regenerate resumes (AI-tailored)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/regen_not_applied.py
+
+      - name: Commit and push regenerated resumes
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          MAX_ATTEMPTS=5
+          attempt=0
+          while [ $attempt -lt $MAX_ATTEMPTS ]; do
+            attempt=$((attempt + 1))
+            echo "--- Push attempt $attempt of $MAX_ATTEMPTS ---"
+            git fetch origin main
+            git reset --soft origin/main
+            git add web/resumes/
+            if git diff --cached --quiet; then
+              echo "No new resumes to push."
+              exit 0
+            fi
+            COUNT=$(git diff --cached --name-only | wc -l)
+            git commit -m "chore: AI-tailored resumes for all Not Applied jobs ($COUNT PDFs regenerated)"
+            if git push; then
+              echo "Push succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected — retrying..."
+            git reset HEAD~1
+            sleep 10
+          done
+
+          echo "ERROR: could not push after $MAX_ATTEMPTS attempts."
+          exit 1
