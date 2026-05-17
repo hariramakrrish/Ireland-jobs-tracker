@@ -143,6 +143,14 @@ def is_experience_appropriate(title: str) -> bool:
         return False
     return True   # neutral titles (Software Engineer, Developer, etc.) → include
 
+# Companies whose listings should never enter the tracker (gig-work / AI-trainer
+# spam that floods every search query with hundreds of near-duplicate roles).
+COMPANY_BLOCKLIST = {"dataannotation", "data annotation"}
+
+def is_company_allowed(company: str) -> bool:
+    c = (company or "").lower().strip()
+    return not any(b in c for b in COMPANY_BLOCKLIST)
+
 def slug(text):
     text = re.sub(r"[^a-z0-9\s]", "", text.lower().strip())
     return re.sub(r"\s+", "_", text)[:40]
@@ -479,6 +487,8 @@ def main():
             for r in all_results:
                 if not is_experience_appropriate(r["title"]):
                     continue
+                if not is_company_allowed(r["company"]):
+                    continue
                 jid = job_id(r["company"], r["title"])
                 if jid not in existing_ids:
                     entry = make_entry(r, category, next_num)
@@ -495,6 +505,8 @@ def main():
             time.sleep(3)
             for r in results:
                 if not is_experience_appropriate(r["title"]):
+                    continue
+                if not is_company_allowed(r["company"]):
                     continue
                 jid = job_id(r["company"], r["title"])
                 if jid not in existing_ids:
