@@ -1,0 +1,50 @@
+name: Regenerate Targeted Resumes (specific IDs)
+
+# Triggered manually after a mass regen ran out of credits and we want to
+# re-run only the ones that fell back to static templates.
+# Reads the ID list from scripts/regen_targets.json (committed to the repo).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Regenerate targeted resumes
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/regen_targeted.py
+      - name: Commit and push regenerated resumes
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --soft origin/main
+            git add web/resumes/
+            if git diff --cached --quiet; then
+              echo "No new resumes to push."
+              exit 0
+            fi
+            COUNT=$(git diff --cached --name-only | wc -l)
+            git commit -m "regen: targeted re-tailoring after credit top-up ($COUNT PDFs)"
+            if git push; then
+              echo "Push succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected, retrying"
+            git reset HEAD~1
+            sleep 10
+          done
+          echo "ERROR: push failed after 5 attempts"
+          exit 1
