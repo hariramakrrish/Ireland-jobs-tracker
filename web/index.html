@@ -77,8 +77,12 @@
   .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 6px; font-size: .8rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
   .btn-apply   { background: var(--blue); color: #fff; }
   .btn-resume  { background: var(--navy); color: #fff; }
+  .btn-resume.tailored { background:#16a34a; color:#fff; position:relative; }
+  .btn-resume.tailored::after { content:""; position:absolute; top:-3px; right:-3px; width:8px; height:8px; background:#facc15; border:1.5px solid #fff; border-radius:50%; }
   .btn-regen   { background: #fff7ed; color: #c2410c; border:1px solid #fdba74; padding: 5px 8px; font-weight: 700; }
   .btn:hover   { opacity: .85; }
+  .tailored-legend { display:inline-flex; align-items:center; gap:8px; font-size:.78rem; color:#475569; margin-left:12px; }
+  .tailored-legend .dot { width:10px; height:10px; background:#16a34a; border-radius:3px; }
 
   /* Regen-resume modal */
   #regen-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; align-items:center; justify-content:center; padding:20px; }
@@ -152,6 +156,10 @@
 </div>
 
 <div class="last-updated" id="last-updated"></div>
+<div style="font-size:.78rem; color:#475569; padding:0 24px 4px;">
+  <span class="tailored-legend"><span class="dot"></span> Green Resume button = AI-tailored to that JD (ready to apply)</span>
+  <span style="margin-left:18px;">Click <b style="color:#c2410c;">✱</b> on any row to regenerate with a pasted JD</span>
+</div>
 
 <div class="table-wrap">
   <table id="jobs-table">
@@ -390,7 +398,7 @@ function renderTable(jobs) {
       <td><select class="status-sel status-${stc}" onchange="changeStatus('${j.id}',this)">${opts}</select></td>
       <td><div class="actions">
         <a class="btn btn-apply"  href="${j.apply_url}" target="_blank">Apply →</a>
-        <a class="btn btn-resume" href="resumes/${j.resume}" target="_blank">📄 Resume</a>
+        <a class="btn btn-resume${j.tailored ? ' tailored' : ''}" href="resumes/${j.resume}" target="_blank" title="${j.tailored ? '✓ AI-tailored to this JD — ready to apply' : 'Static template — regen recommended'}">📄 Resume</a>
         <button class="btn btn-regen" title="Regenerate resume with a pasted JD" onclick="openRegen('${j.id}')">✱</button>
       </div></td>
     </tr>`;
