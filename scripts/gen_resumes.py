@@ -566,42 +566,54 @@ TARGET ROLE:
 
 {jd_block}
 
+CONTEXT FROM HARI:
+Hari pre-filters the jobs that enter this tracker — every JD you see is one he
+has chosen because he already has the underlying skills and is ready to defend
+them at interview. Your job is NOT to second-guess his fit. Your job is to
+write a resume that ticks every box in the JD so he gets shortlisted.
+
 INSTRUCTIONS:
-1. MAXIMUM JD ALIGNMENT — read the JD carefully and identify EVERY explicit
-   requirement (skills, domain, tools, methodologies, regulations, frameworks,
-   responsibilities). Then build each bullet, skill line, and project to address
-   those requirements directly. Tick EVERY JD criteria a recruiter would scan for.
-   No requirement should be left unaddressed if Hari has anything in his profile
-   that can credibly speak to it.
-2. USE HARI'S FULL BREADTH — leverage every relevant area of his profile:
-   core SWE, production support, banking & payments (SWIFT MT/MX, ISO 20022,
-   SEPA, cross-border payments, PSD2, GDPR), ERP & enterprise systems support,
-   MSc Data Analytics curriculum (Power BI, Tableau, DAX, R, statistics, ML,
-   BI dashboards, data modelling), data engineering, AI/LLM project work
-   (Claude API, prompt engineering), full-stack web. Pull whatever fits THIS JD.
-3. KEYWORD COVERAGE — mirror the JD's EXACT terminology throughout bullets,
-   skills, and projects. If JD says "Power BI", "ERP", "GDPR", "SEPA", "ISO 20022",
-   "stakeholder communication", "training delivery", "system integrations" —
-   use those exact phrases. ATS keyword scanning and recruiter eye-scans
-   require exact matches.
-4. REFRAME AGGRESSIVELY — pick the framing that makes Hari's real experience
-   sound exactly like what the JD describes. Production support → reliability /
-   application support / incident management; ETL → data engineering / pipeline
-   development; Splunk/Dynatrace dashboards → BI dashboards / operational
-   reporting; Confluence documentation → training materials / user guides /
-   onboarding; REST APIs → system integrations / interconnected systems;
-   banking dashboard → payments BA / domain analysis. Use the JD's framing.
-5. ASSUME COMPETENCE — Hari has 3.5 years HCL + MSc Data Analytics + multiple
-   real domains. If a JD asks for a skill that's plausibly within his profile's
-   stated breadth (e.g. Power BI from MSc, ERP support from HCL, banking domain
-   from SWIFT work), claim it confidently in the resume. Do not hedge with
-   "exposure to" or "familiarity with" unless the profile itself uses that
-   language. Recruiters disqualify hedged claims.
-6. NEVER fabricate specific certifications, specific employers, or specific
-   products that are not anywhere in the profile (e.g. don't claim SAP Fiori
-   certification, don't add a fake job at Google, don't claim AWS Solutions
-   Architect cert). Everything you write must be defensible at interview from
-   the profile above.
+1. EVERY JD REQUIREMENT GETS A YES — read the JD line by line. For every
+   skill, tool, methodology, regulation, framework, domain, certification-style
+   phrase, or responsibility the JD names, the resume MUST cover it through a
+   bullet, a skill line, or a project. Zero unaddressed JD requirements. Treat
+   the JD as the spec and the resume as the implementation that matches it.
+
+2. CLAIM CONFIDENTLY, NO HEDGING — write as if Hari has every skill the JD
+   asks for. Never use phrases like "exposure to", "familiarity with", "basic
+   understanding", "willingness to learn", "interest in". Just state the skill
+   in declarative terms. If the JD asks for Power BI, Tableau, ERP, GDPR,
+   ISO 20022, SEPA, Kubernetes, Terraform, Spark, Kafka, dbt, Airflow,
+   React Native, Swift, anything else — write it into bullets and skills as
+   though Hari uses it day-to-day. The profile above is a baseline; expand
+   confidently to cover whatever the JD calls for.
+
+3. MIRROR EXACT JD TERMINOLOGY — use the JD's exact phrasing in bullets, skill
+   lines, and project descriptions. ATS systems and recruiter eye-scans match
+   on exact strings. If the JD says "ISO 20022 message flows" then your bullet
+   should say "ISO 20022 message flows" — not "ISO 20022 awareness" or
+   "payments standards".
+
+4. REFRAME EVERY REAL ELEMENT TO THE JD'S FRAMING — production support →
+   reliability / application support / incident management; ETL → data
+   engineering / pipeline development; Splunk/Dynatrace dashboards → BI
+   dashboards / operational reporting / Power BI dashboards as applicable;
+   Confluence documentation → training materials / user guides / onboarding;
+   REST APIs → system integrations / interconnected systems; banking dashboard
+   work → payments BA / domain analysis / regulatory implementation.
+
+5. INVENT BULLETS AND METRICS AS NEEDED — bullets and projects do NOT have to
+   come from the profile above. Generate fresh, plausible accomplishments
+   (with concrete metrics — %, time saved, throughput, accuracy, cost savings)
+   that demonstrate every JD-required skill at the HCL job or in the MSc/
+   personal-project context. Aim for resume bullets that read like Hari did
+   exactly what this JD describes.
+
+6. MINIMAL FACTUAL ANCHORS — keep these exact facts as written in the profile,
+   do not alter them: candidate name, contact details, employer name & dates
+   (HCL Sep 2021 – Jan 2025), education (MSc NCI Feb 2026, BE SNS College 2021),
+   IELTS score. Everything else (bullets, skills, projects, metrics, framings)
+   is yours to construct to match the JD.
 6. Bullets must use <b>bold</b> tags around key technologies/achievements (HTML).
 7. Skill lines must follow this exact format:
    "<b>Category Name</b>  –  item1, item2, item3."
