@@ -562,7 +562,12 @@ CANDIDATE PROFILE:
 TARGET ROLE:
   Title   : {title}
   Company : {company}
-  Category: {category}
+
+  (Ignore any 'category' label you may infer from elsewhere — it is auto-assigned
+  by the scraper and is frequently WRONG. Read the JD below carefully and let
+  THAT be the only thing you anchor on. e.g. a 'Payments Business Analyst' role
+  must be written as a payments BA resume, not an IT helpdesk resume, even if
+  the scraper guessed wrong.)
 
 {jd_block}
 
@@ -602,18 +607,37 @@ INSTRUCTIONS:
    REST APIs → system integrations / interconnected systems; banking dashboard
    work → payments BA / domain analysis / regulatory implementation.
 
-5. INVENT BULLETS AND METRICS AS NEEDED — bullets and projects do NOT have to
-   come from the profile above. Generate fresh, plausible accomplishments
-   (with concrete metrics — %, time saved, throughput, accuracy, cost savings)
-   that demonstrate every JD-required skill at the HCL job or in the MSc/
-   personal-project context. Aim for resume bullets that read like Hari did
-   exactly what this JD describes.
+5. ANCHOR BULLETS TO HARI'S REAL DOMAINS — bullets and projects must be
+   plausible extensions of one of these CONCRETE experience areas in the
+   profile above:
+     (a) HCL Technologies enterprise SWE work (Java/Spring Boot, Python, SQL,
+         AWS, production support, monitoring, CI/CD, change-control, UAT)
+     (b) HCL banking/payments domain (SWIFT MT/MX dashboard, payments ops,
+         SEPA / ISO 20022 / cross-border / PSD2 / GDPR, BAs, regulators)
+     (c) HCL ERP & enterprise business systems (ERP support, integrations,
+         change management, helpdesk for business-system users)
+     (d) MSc Data Analytics @ NCI (Power BI, DAX, Tableau, R, statistics, ML,
+         data modelling, BI dashboards, data warehousing)
+     (e) Personal project: ireland-jobs-tracker (Claude API, prompt engineering,
+         AI workflow automation, GitHub Actions, Vercel, full-stack web)
 
-6. MINIMAL FACTUAL ANCHORS — keep these exact facts as written in the profile,
+   Whatever the JD asks for, you reframe ONE of (a)-(e) above to sound like it.
+   You may invent specific metrics (%, count, time, throughput) and project
+   names to make the bullets punchy. But you must NOT invent entirely new
+   role profiles outside (a)-(e) — e.g. don't claim L1 desktop support /
+   Active Directory administration / network printer troubleshooting / 500-user
+   helpdesk if the JD is for that, because those are NOT in Hari's profile.
+   Use his real banking/ERP/Power BI/AI/SWE background and reframe it.
+
+6. NEVER CONTRADICT THE JD — if the JD is "Payments BA", write a payments BA
+   resume even if the scraper's 'category' label suggested something else.
+   The JD content is the ground truth, the category is noise.
+
+7. MINIMAL FACTUAL ANCHORS — keep these exact facts as written in the profile,
    do not alter them: candidate name, contact details, employer name & dates
    (HCL Sep 2021 – Jan 2025), education (MSc NCI Feb 2026, BE SNS College 2021),
    IELTS score. Everything else (bullets, skills, projects, metrics, framings)
-   is yours to construct to match the JD.
+   is yours to construct to match the JD — anchored to areas (a)-(e) above.
 6. Bullets must use <b>bold</b> tags around key technologies/achievements (HTML).
 7. Skill lines must follow this exact format:
    "<b>Category Name</b>  –  item1, item2, item3."
