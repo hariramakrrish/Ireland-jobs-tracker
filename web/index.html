@@ -160,8 +160,9 @@
   #sync-toast.ok   { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
   #sync-toast.err  { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
 
-  /* Pending indicator — hidden, sync is silent */
-  #pending-indicator { display:none !important; }
+  /* Pending indicator */
+  #pending-indicator { display:none; position:fixed; bottom:64px; right:24px; background:#fff7ed; color:#c2410c; border:1px solid #fdba74; border-radius:8px; padding:8px 14px; font-size:.8rem; font-weight:600; cursor:pointer; z-index:998; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  #pending-indicator.show { display:block; }
 </style>
 <div id="sync-toast"></div>
 <div id="pending-indicator"></div>
@@ -253,12 +254,36 @@ function updatePendingBadge() {
   }
 }
 
-// Flush pending on page load (e.g. user just set a token in another tab)
+// Flush pending on page load
 window.addEventListener('load', () => {
   updatePendingBadge();
-  if (Object.keys(pending).length > 0 && (getGHToken())) {
+  if (Object.keys(pending).length > 0) flushPending();
+});
+
+// Retry button on pending badge
+document.getElementById('pending-indicator').addEventListener('click', () => {
+  if (Object.keys(pending).length > 0) {
+    showToast('Retrying sync…', 'ok');
     flushPending();
   }
+});
+
+// Auto-refresh jobs.json every 3 minutes so all devices stay in sync
+async function refreshJobsData() {
+  try {
+    const r = await fetch('data/jobs.json?t=' + Date.now());
+    if (!r.ok) return;
+    const fresh = await r.json();
+    ALL_JOBS = fresh;
+    renderTable(fresh);
+    if (Object.keys(pending).length > 0) flushPending();
+  } catch(e) {}
+}
+setInterval(refreshJobsData, 3 * 60 * 1000);
+
+// Also refresh when user switches back to this tab (critical for mobile→Mac flow)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshJobsData();
 });
 </script>
 
@@ -287,11 +312,11 @@ function getStatus(job) {
 }
 
 let toastTimer;
-function showToast(msg, type) {
+function showToast(msg, type, duration) {
   const t = document.getElementById("sync-toast");
   t.textContent = msg; t.className = `show ${type}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.className = "", 2500);
+  toastTimer = setTimeout(() => t.className = "", duration || 2500);
 }
 
 function renderStats(jobs) {
@@ -344,15 +369,17 @@ async function changeStatus(id, sel) {
   renderStats(ALL_JOBS);
   updatePendingBadge();
 
-  // Attempt GitHub sync — silent on failure, success shows brief toast
+  // Attempt GitHub sync — show feedback either way
   const ok = await syncStatusToGitHub(id, val);
   if (ok) {
     delete pending[id];
     localStorage.setItem("pending_statuses", JSON.stringify(pending));
     showToast("✓ Synced", "ok");
     updatePendingBadge();
+  } else {
+    showToast("⚠ Sync failed — tap the orange badge to retry", "err", 5000);
+    updatePendingBadge();
   }
-  // No toast on failure — status is already saved locally, will retry on page load
 }
 
 function applyFilters() {
