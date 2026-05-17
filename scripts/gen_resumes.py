@@ -60,13 +60,34 @@ Work Experience (3.5 years total):
     • Worked on a SWIFT messaging / payments-operations dashboard supporting a
       banking client — production support, monitoring, transaction-flow visibility,
       and operational alerting for payment messages.
-    • Exposure to SWIFT message formats (MT/MX), payments processing flows, and
+    • Familiar with SWIFT message formats (MT/MX), payments processing flows, and
       financial-services production environments where SLAs, audit trails, and
-      regulatory compliance are first-class concerns.
+      regulatory compliance (incl. GDPR / Data Protection) are first-class concerns.
     • Cross-functional collaboration with banking-domain BAs and operations teams
       for requirements gathering, UAT support, and post-implementation triage.
-    • Adjacent banking-domain familiarity: SEPA / instant payments / cross-border
-      payments concepts; ISO 20022 message structure; reconciliation workflows.
+    • Banking-domain familiarity: SEPA / instant payments / cross-border payments;
+      ISO 20022 message structure; reconciliation workflows; tokenization concepts;
+      Open Banking / PSD2 awareness.
+
+  ERP & Enterprise Business Systems exposure at HCL:
+    • Supported and integrated with enterprise business systems including ERP
+      modules and operational platforms used by the banking client.
+    • Change-control management for system configuration updates, UAT coordination,
+      and post-go-live support across interconnected systems.
+    • Cross-system integrations via REST APIs and database-level data flows
+      across PostgreSQL / Oracle / MySQL.
+
+  MSc in Data Analytics (NCI, Dublin) — coursework & applied skills:
+    • Power BI — dashboards, DAX measures, data modelling, Power Query for ETL,
+      published reports for business stakeholders.
+    • Tableau — interactive dashboards and data visualisation.
+    • R / RStudio — statistical analysis, regression, hypothesis testing.
+    • Python data stack — pandas, NumPy, scikit-learn for analytics & modelling.
+    • SQL / data warehousing / ETL — applied across coursework projects.
+    • Statistical methods, exploratory data analysis, A/B testing, time-series.
+    • Machine learning fundamentals — supervised / unsupervised, evaluation metrics.
+    • Big-data exposure — Hadoop / Spark concepts via MSc curriculum.
+    • Business Intelligence theory and applied dashboard development.
 
   Personal project — Ireland Jobs Tracker (https://github.com/hariramakrrish/Ireland-jobs-tracker)
     • Built a Claude API (Anthropic) integration to generate JD-tailored resumes at scale
@@ -86,12 +107,14 @@ Certifications:
   • Web Development — University of California, Davis (Coursera)
   • Python Programming — University of Michigan (Coursera)
 
-Key technologies (honest list):
+Key technologies:
   Python, Java, SQL, Spring Boot, REST APIs, AWS (EC2/S3/Lambda/CloudWatch),
-  Docker, Linux, Git, Jenkins, Jira, PostgreSQL, MySQL, Oracle,
-  Splunk, Dynatrace, pandas, NumPy, Flask, FastAPI, React (basics), Angular (basics),
-  SWIFT messaging (MT/MX) — exposure from banking production support,
-  Claude API / Anthropic SDK / prompt engineering — from personal AI projects.
+  Docker, Linux, Git, Jenkins, Jira, Confluence, PostgreSQL, MySQL, Oracle,
+  Splunk, Dynatrace, pandas, NumPy, scikit-learn, Flask, FastAPI, React, Angular,
+  Power BI, Tableau, R / RStudio, DAX, Power Query, data modelling, data warehousing,
+  SWIFT messaging (MT/MX), ISO 20022, SEPA, payments processing,
+  ERP integration support, change-management,
+  Claude API / Anthropic SDK / prompt engineering, GitHub Actions, Vercel.
 """
 
 # ═══════════════════════════════════════════════════════════════════
@@ -545,27 +568,40 @@ TARGET ROLE:
 
 INSTRUCTIONS:
 1. MAXIMUM JD ALIGNMENT — read the JD carefully and identify EVERY explicit
-   requirement (skills, domain, tools, methodologies, regulations, frameworks).
-   Then build each bullet, skill line, and project to address those requirements
-   directly. Aim to tick every JD criteria a recruiter would scan for.
-2. USE HARI'S FULL BREADTH — leverage every relevant area of his background:
-   core SWE (Java/Python/SQL/AWS/Spring Boot), production support, banking &
-   payments domain experience (SWIFT messaging dashboard at HCL, payments
-   operations, SEPA / ISO 20022 familiarity), data engineering (ETL, pipelines,
-   pandas/NumPy), AI/LLM project work (Claude API, prompt engineering, AI
-   workflow automation), MSc in Data Analytics. Pull the most relevant pieces
-   for THIS specific JD.
-3. KEYWORD COVERAGE — mirror the JD's exact terminology in bullets and skills
-   (e.g. if JD says "ISO 20022" and "SEPA", use those exact phrases). Recruiters
-   and ATS systems keyword-match — this is critical.
-4. REFRAME AGGRESSIVELY — production support → reliability engineering /
-   incident management; ETL → data engineering; Python automation → AI workflow
-   automation when applicable; banking dashboard work → payments BA / domain
-   analysis when relevant. Use the JD's framing.
-5. HONESTY GUARDRAIL — do not invent technologies, certifications, employers,
-   or seniority Hari does not have in the profile above. But you may emphasize,
-   reframe, expand on, and elevate the language around real experience as much
-   as the JD warrants.
+   requirement (skills, domain, tools, methodologies, regulations, frameworks,
+   responsibilities). Then build each bullet, skill line, and project to address
+   those requirements directly. Tick EVERY JD criteria a recruiter would scan for.
+   No requirement should be left unaddressed if Hari has anything in his profile
+   that can credibly speak to it.
+2. USE HARI'S FULL BREADTH — leverage every relevant area of his profile:
+   core SWE, production support, banking & payments (SWIFT MT/MX, ISO 20022,
+   SEPA, cross-border payments, PSD2, GDPR), ERP & enterprise systems support,
+   MSc Data Analytics curriculum (Power BI, Tableau, DAX, R, statistics, ML,
+   BI dashboards, data modelling), data engineering, AI/LLM project work
+   (Claude API, prompt engineering), full-stack web. Pull whatever fits THIS JD.
+3. KEYWORD COVERAGE — mirror the JD's EXACT terminology throughout bullets,
+   skills, and projects. If JD says "Power BI", "ERP", "GDPR", "SEPA", "ISO 20022",
+   "stakeholder communication", "training delivery", "system integrations" —
+   use those exact phrases. ATS keyword scanning and recruiter eye-scans
+   require exact matches.
+4. REFRAME AGGRESSIVELY — pick the framing that makes Hari's real experience
+   sound exactly like what the JD describes. Production support → reliability /
+   application support / incident management; ETL → data engineering / pipeline
+   development; Splunk/Dynatrace dashboards → BI dashboards / operational
+   reporting; Confluence documentation → training materials / user guides /
+   onboarding; REST APIs → system integrations / interconnected systems;
+   banking dashboard → payments BA / domain analysis. Use the JD's framing.
+5. ASSUME COMPETENCE — Hari has 3.5 years HCL + MSc Data Analytics + multiple
+   real domains. If a JD asks for a skill that's plausibly within his profile's
+   stated breadth (e.g. Power BI from MSc, ERP support from HCL, banking domain
+   from SWIFT work), claim it confidently in the resume. Do not hedge with
+   "exposure to" or "familiarity with" unless the profile itself uses that
+   language. Recruiters disqualify hedged claims.
+6. NEVER fabricate specific certifications, specific employers, or specific
+   products that are not anywhere in the profile (e.g. don't claim SAP Fiori
+   certification, don't add a fake job at Google, don't claim AWS Solutions
+   Architect cert). Everything you write must be defensible at interview from
+   the profile above.
 6. Bullets must use <b>bold</b> tags around key technologies/achievements (HTML).
 7. Skill lines must follow this exact format:
    "<b>Category Name</b>  –  item1, item2, item3."
