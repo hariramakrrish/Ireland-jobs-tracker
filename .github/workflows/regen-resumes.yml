@@ -38,13 +38,19 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Stash PDFs, hard-reset everything else to remote, re-apply PDFs.
+          # Prevents the prior bug where `git reset --soft` left stale
+          # non-PDF files (jobs.json) in the index and clobbered unrelated
+          # edits landed on main while the workflow ran.
           MAX_ATTEMPTS=5
           attempt=0
           while [ $attempt -lt $MAX_ATTEMPTS ]; do
             attempt=$((attempt + 1))
             echo "--- Push attempt $attempt of $MAX_ATTEMPTS ---"
             git fetch origin main
-            git reset --soft origin/main
+            git stash push -- web/resumes/ >/dev/null || true
+            git checkout origin/main -- .
+            git stash pop >/dev/null || true
             git add web/resumes/
             if git diff --cached --quiet; then
               echo "No new resumes to push."

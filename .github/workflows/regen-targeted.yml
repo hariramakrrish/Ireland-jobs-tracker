@@ -28,9 +28,16 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Stash PDFs, rebase onto remote main, then re-apply PDFs only.
+          # This avoids the prior bug where `git reset --soft` left the
+          # pre-checkout jobs.json in the index, so the commit accidentally
+          # reverted unrelated edits (tailored:true flags etc.) that landed
+          # on main after the workflow started.
           for attempt in 1 2 3 4 5; do
             git fetch origin main
-            git reset --soft origin/main
+            git stash push -- web/resumes/ >/dev/null || true
+            git checkout origin/main -- .
+            git stash pop >/dev/null || true
             git add web/resumes/
             if git diff --cached --quiet; then
               echo "No new resumes to push."
