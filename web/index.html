@@ -77,7 +77,28 @@
   .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 6px; font-size: .8rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
   .btn-apply   { background: var(--blue); color: #fff; }
   .btn-resume  { background: var(--navy); color: #fff; }
+  .btn-regen   { background: #fff7ed; color: #c2410c; border:1px solid #fdba74; padding: 5px 8px; font-weight: 700; }
   .btn:hover   { opacity: .85; }
+
+  /* Regen-resume modal */
+  #regen-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; align-items:center; justify-content:center; padding:20px; }
+  #regen-overlay.show { display:flex; }
+  #regen-modal { background:#fff; border-radius:10px; max-width:780px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  #regen-modal header { padding:18px 22px; border-bottom:1px solid #e5e7eb; }
+  #regen-modal h2 { margin:0 0 4px; font-size:1.05rem; font-weight:700; color:#0f172a; }
+  #regen-modal .sub { font-size:.8rem; color:#64748b; }
+  #regen-modal .body { padding:18px 22px; overflow-y:auto; }
+  #regen-modal label { display:block; font-size:.78rem; font-weight:600; color:#334155; margin:0 0 6px; }
+  #regen-jd { width:100%; min-height:280px; padding:10px 12px; font-family:inherit; font-size:.85rem; border:1px solid #cbd5e1; border-radius:6px; resize:vertical; line-height:1.45; box-sizing:border-box; }
+  #regen-status { margin-top:10px; padding:8px 12px; border-radius:6px; font-size:.82rem; display:none; }
+  #regen-status.show { display:block; }
+  #regen-status.ok  { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
+  #regen-status.err { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
+  #regen-status.info{ background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; }
+  #regen-modal footer { padding:14px 22px; border-top:1px solid #e5e7eb; display:flex; gap:8px; justify-content:flex-end; }
+  #regen-modal footer .btn-cancel { background:#f1f5f9; color:#475569; padding:8px 16px; border-radius:6px; border:none; cursor:pointer; font-size:.85rem; }
+  #regen-modal footer .btn-go { background:#c2410c; color:#fff; padding:8px 16px; border-radius:6px; border:none; cursor:pointer; font-size:.85rem; font-weight:600; }
+  #regen-modal footer .btn-go:disabled { opacity:.6; cursor:not-allowed; }
   .actions     { display: flex; gap: 6px; flex-wrap: nowrap; }
 
   /* Empty state */
@@ -166,6 +187,25 @@
 </style>
 <div id="sync-toast"></div>
 <div id="pending-indicator"></div>
+
+<!-- Regenerate resume modal -->
+<div id="regen-overlay" role="dialog" aria-modal="true" aria-labelledby="regen-title">
+  <div id="regen-modal">
+    <header>
+      <h2 id="regen-title">Regenerate resume</h2>
+      <div class="sub" id="regen-subtitle"></div>
+    </header>
+    <div class="body">
+      <label for="regen-jd">Paste the full job description (leave as-is to regenerate using the stored one):</label>
+      <textarea id="regen-jd" placeholder="Paste the full JD here for best tailoring…"></textarea>
+      <div id="regen-status"></div>
+    </div>
+    <footer>
+      <button class="btn-cancel" id="regen-cancel">Cancel</button>
+      <button class="btn-go" id="regen-submit">Regenerate</button>
+    </footer>
+  </div>
+</div>
 
 <script>
 // ─── GitHub / Sync config ────────────────────────────────────────────────────
@@ -351,6 +391,7 @@ function renderTable(jobs) {
       <td><div class="actions">
         <a class="btn btn-apply"  href="${j.apply_url}" target="_blank">Apply →</a>
         <a class="btn btn-resume" href="resumes/${j.resume}" target="_blank">📄 Resume</a>
+        <button class="btn btn-regen" title="Regenerate resume with a pasted JD" onclick="openRegen('${j.id}')">✱</button>
       </div></td>
     </tr>`;
   }).join("");
@@ -428,6 +469,67 @@ fetch("data/jobs.json")
     document.getElementById("jobs-body").innerHTML =
       '<tr><td colspan="9" class="empty">Could not load jobs.json</td></tr>';
   });
+
+// ── Regenerate-resume modal ──────────────────────────────────────────
+let regenJobId = null;
+
+function openRegen(jobId) {
+  const job = ALL_JOBS.find(j => j.id === jobId);
+  if (!job) return;
+  regenJobId = jobId;
+  document.getElementById('regen-subtitle').textContent = `${job.company} — ${job.title}`;
+  // Strip HTML tags from stored description so users can edit clean text
+  const stored = (job.description || '').replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  document.getElementById('regen-jd').value = stored;
+  setRegenStatus('', '');
+  document.getElementById('regen-submit').disabled = false;
+  document.getElementById('regen-overlay').classList.add('show');
+  document.getElementById('regen-jd').focus();
+}
+
+function closeRegen() {
+  document.getElementById('regen-overlay').classList.remove('show');
+  regenJobId = null;
+}
+
+function setRegenStatus(msg, kind) {
+  const el = document.getElementById('regen-status');
+  el.textContent = msg;
+  el.className = msg ? `show ${kind || 'info'}` : '';
+}
+
+document.getElementById('regen-cancel').addEventListener('click', closeRegen);
+document.getElementById('regen-overlay').addEventListener('click', e => {
+  if (e.target.id === 'regen-overlay') closeRegen();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('regen-overlay').classList.contains('show')) closeRegen();
+});
+
+document.getElementById('regen-submit').addEventListener('click', async () => {
+  if (!regenJobId) return;
+  const jd = document.getElementById('regen-jd').value;
+  const btn = document.getElementById('regen-submit');
+  btn.disabled = true;
+  setRegenStatus('Triggering regeneration…', 'info');
+  try {
+    const r = await fetch('/api/regenerate-resume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId: regenJobId, jd }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      setRegenStatus('✓ ' + (data.message || 'Regeneration started. Refresh in 1-2 minutes.'), 'ok');
+    } else {
+      setRegenStatus('⚠ ' + (data.error || `HTTP ${r.status}`), 'err');
+      btn.disabled = false;
+    }
+  } catch (e) {
+    setRegenStatus('⚠ Network error: ' + e.message, 'err');
+    btn.disabled = false;
+  }
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,58 @@
+name: Regenerate Single Resume (on-demand)
+
+# Triggered by the dashboard's regenerate-resume button, which POSTs to the
+# Vercel /api/regenerate-resume function, which calls the GitHub
+# `repository_dispatch` API with event_type=regen-resume and a client_payload
+# containing { jobId, jd }.
+on:
+  repository_dispatch:
+    types: [regen-resume]
+
+permissions:
+  contents: write
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Regenerate one resume
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          JOB_ID:            ${{ github.event.client_payload.jobId }}
+          JD_OVERRIDE:       ${{ github.event.client_payload.jd }}
+        run: python scripts/regen_single.py
+
+      - name: Commit and push regenerated resume
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/data/jobs.json web/resumes/
+          if git diff --cached --quiet; then
+            echo "No changes produced — regen may have failed silently."
+            exit 1
+          fi
+          git commit -m "regen: resume for job ${{ github.event.client_payload.jobId }} (on-demand)"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; echo "rebase failed"; exit 1; }
+            if git push; then
+              echo "Pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "Push attempt $attempt rejected, retrying"
+            sleep 5
+          done
+          echo "ERROR: push failed after 5 attempts"
+          exit 1
