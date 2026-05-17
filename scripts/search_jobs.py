@@ -151,6 +151,36 @@ def is_company_allowed(company: str) -> bool:
     c = (company or "").lower().strip()
     return not any(b in c for b in COMPANY_BLOCKLIST)
 
+# Titles that aren't software-engineering roles. Scrapers ingest these because
+# generic queries like "graduate engineer" or "junior analyst" match civil/lab/
+# admin postings. Drop them at ingestion so the tracker stays SWE-focused.
+NON_SWE_TITLE = re.compile(
+    r"\b("
+    # Construction / civil / mechanical / electrical engineering
+    r"civil (engineer|technician)|graduate civil|civil engineering|"
+    r"mechanical engineer|graduate mechanical|hvac|"
+    r"(graduate )?electrical engineer|power engineer|"
+    r"wastewater|geospatial|surveyor|site engineer|construction|landscape (architect|engineer)|"
+    r"chemical engineer|process engineer|quantity surveyor|building services|"
+    r"ehs |environmental consultant|heritage consultant|continuous improvement|"
+    # Lab / Medical / Biotech / Pharma
+    r"medical scientist|laboratory support|lab analyst|biopharma|biomedical|microbiology|"
+    r"pharmacology|haematology|qc analyst|complaint investigation|"
+    r"(associate|principal) research scientist|pharmaceutical|"
+    # Sales / Marketing / Finance / Admin (non-technical)
+    r"sales path|sales (graduate|associate)|marketing analyst|"
+    r"accounts payable|accounts receivable|patient administrator|"
+    r"junior administrator|landscape architect|change analyst|"
+    r"project manager- change|graduate sales|business unit coordinator|"
+    r"document controller|junior business analyst - revenue|financial analyst(?! .*tech)|"
+    r"graduate health (and|&) safety|health (and|&) safety consultant"
+    r")\b",
+    re.I,
+)
+
+def is_swe_title(title: str) -> bool:
+    return not NON_SWE_TITLE.search(title or "")
+
 def slug(text):
     text = re.sub(r"[^a-z0-9\s]", "", text.lower().strip())
     return re.sub(r"\s+", "_", text)[:40]
@@ -489,6 +519,8 @@ def main():
                     continue
                 if not is_company_allowed(r["company"]):
                     continue
+                if not is_swe_title(r["title"]):
+                    continue
                 jid = job_id(r["company"], r["title"])
                 if jid not in existing_ids:
                     entry = make_entry(r, category, next_num)
@@ -507,6 +539,8 @@ def main():
                 if not is_experience_appropriate(r["title"]):
                     continue
                 if not is_company_allowed(r["company"]):
+                    continue
+                if not is_swe_title(r["title"]):
                     continue
                 jid = job_id(r["company"], r["title"])
                 if jid not in existing_ids:
