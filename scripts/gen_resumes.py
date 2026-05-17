@@ -56,6 +56,26 @@ Work Experience (3.5 years total):
     • Jira, Confluence — ticketing, defect tracking, Agile/Scrum ceremonies
     • Linux — log analysis, shell scripting, cron jobs
 
+  Banking & Financial Services domain experience at HCL:
+    • Worked on a SWIFT messaging / payments-operations dashboard supporting a
+      banking client — production support, monitoring, transaction-flow visibility,
+      and operational alerting for payment messages.
+    • Exposure to SWIFT message formats (MT/MX), payments processing flows, and
+      financial-services production environments where SLAs, audit trails, and
+      regulatory compliance are first-class concerns.
+    • Cross-functional collaboration with banking-domain BAs and operations teams
+      for requirements gathering, UAT support, and post-implementation triage.
+    • Adjacent banking-domain familiarity: SEPA / instant payments / cross-border
+      payments concepts; ISO 20022 message structure; reconciliation workflows.
+
+  Personal project — Ireland Jobs Tracker (https://github.com/hariramakrrish/Ireland-jobs-tracker)
+    • Built a Claude API (Anthropic) integration to generate JD-tailored resumes at scale
+      (claude-haiku-4-5) with structured-JSON prompt engineering and constraint guardrails.
+    • Orchestrated end-to-end AI workflow automation: Apify scrapers → JD ingestion →
+      Claude-tailored content → reportlab PDF generation → GitHub Actions CI → Vercel deploy.
+    • Hands-on prompt engineering, AI workflow orchestration, and API integration —
+      directly relevant to LLM / AI engineering / automation roles.
+
 Education:
   • MSc in Data Analytics — National College of Ireland, Dublin (COMPLETED Feb 2026)
   • Bachelor of Engineering (BE) in Computer Science — SNS College of Technology, Coimbatore, India (2021)
@@ -69,7 +89,9 @@ Certifications:
 Key technologies (honest list):
   Python, Java, SQL, Spring Boot, REST APIs, AWS (EC2/S3/Lambda/CloudWatch),
   Docker, Linux, Git, Jenkins, Jira, PostgreSQL, MySQL, Oracle,
-  Splunk, Dynatrace, pandas, NumPy, Flask, FastAPI, React (basics), Angular (basics)
+  Splunk, Dynatrace, pandas, NumPy, Flask, FastAPI, React (basics), Angular (basics),
+  SWIFT messaging (MT/MX) — exposure from banking production support,
+  Claude API / Anthropic SDK / prompt engineering — from personal AI projects.
 """
 
 # ═══════════════════════════════════════════════════════════════════
@@ -522,20 +544,37 @@ TARGET ROLE:
 {jd_block}
 
 INSTRUCTIONS:
-1. Generate content that authentically represents Hari's background while matching
-   approximately 75-80% of what this role requires.
-2. Do NOT invent technologies or seniority he doesn't have. Stretch plausibly — e.g.
-   frame production support as reliability engineering; frame ETL as data engineering.
-3. Use keywords from the job description naturally in bullets and skills.
-4. Bullets must use <b>bold</b> tags around key technologies/achievements (HTML).
-5. Skill lines must follow this exact format:
+1. MAXIMUM JD ALIGNMENT — read the JD carefully and identify EVERY explicit
+   requirement (skills, domain, tools, methodologies, regulations, frameworks).
+   Then build each bullet, skill line, and project to address those requirements
+   directly. Aim to tick every JD criteria a recruiter would scan for.
+2. USE HARI'S FULL BREADTH — leverage every relevant area of his background:
+   core SWE (Java/Python/SQL/AWS/Spring Boot), production support, banking &
+   payments domain experience (SWIFT messaging dashboard at HCL, payments
+   operations, SEPA / ISO 20022 familiarity), data engineering (ETL, pipelines,
+   pandas/NumPy), AI/LLM project work (Claude API, prompt engineering, AI
+   workflow automation), MSc in Data Analytics. Pull the most relevant pieces
+   for THIS specific JD.
+3. KEYWORD COVERAGE — mirror the JD's exact terminology in bullets and skills
+   (e.g. if JD says "ISO 20022" and "SEPA", use those exact phrases). Recruiters
+   and ATS systems keyword-match — this is critical.
+4. REFRAME AGGRESSIVELY — production support → reliability engineering /
+   incident management; ETL → data engineering; Python automation → AI workflow
+   automation when applicable; banking dashboard work → payments BA / domain
+   analysis when relevant. Use the JD's framing.
+5. HONESTY GUARDRAIL — do not invent technologies, certifications, employers,
+   or seniority Hari does not have in the profile above. But you may emphasize,
+   reframe, expand on, and elevate the language around real experience as much
+   as the JD warrants.
+6. Bullets must use <b>bold</b> tags around key technologies/achievements (HTML).
+7. Skill lines must follow this exact format:
    "<b>Category Name</b>  –  item1, item2, item3."
-6. CRITICAL — Education: Hari's MSc is COMPLETED (Feb 2026). NEVER write "in progress",
+8. CRITICAL — Education: Hari's MSc is COMPLETED (Feb 2026). NEVER write "in progress",
    "currently pursuing", "currently completing", or any similar phrase. It is done.
-7. CRITICAL — Never use the abbreviation "BEng". If you mention the degree, write
+9. CRITICAL — Never use the abbreviation "BEng". If you mention the degree, write
    "Bachelor of Engineering" or "BE" in full.
-8. CRITICAL — Never use the word "Foundational" anywhere (e.g. not "Angular (Foundational)"
-   or "Frontend (Foundational)"). Just write the skill name without qualifiers.
+10. CRITICAL — Never use the word "Foundational" anywhere (e.g. not "Angular (Foundational)"
+    or "Frontend (Foundational)"). Just write the skill name without qualifiers.
 
 Return ONLY a valid JSON object with this exact structure (no markdown fences):
 {{
