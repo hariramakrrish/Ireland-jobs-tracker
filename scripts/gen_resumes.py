@@ -89,14 +89,6 @@ Work Experience (3.5 years total):
     • Big-data exposure — Hadoop / Spark concepts via MSc curriculum.
     • Business Intelligence theory and applied dashboard development.
 
-  Personal project — Ireland Jobs Tracker (https://github.com/hariramakrrish/Ireland-jobs-tracker)
-    • Built a Claude API (Anthropic) integration to generate JD-tailored resumes at scale
-      (claude-haiku-4-5) with structured-JSON prompt engineering and constraint guardrails.
-    • Orchestrated end-to-end AI workflow automation: Apify scrapers → JD ingestion →
-      Claude-tailored content → reportlab PDF generation → GitHub Actions CI → Vercel deploy.
-    • Hands-on prompt engineering, AI workflow orchestration, and API integration —
-      directly relevant to LLM / AI engineering / automation roles.
-
 Education:
   • MSc in Data Analytics — National College of Ireland, Dublin (COMPLETED Feb 2026)
   • Bachelor of Engineering (BE) in Computer Science — SNS College of Technology, Coimbatore, India (2021)
@@ -113,8 +105,7 @@ Key technologies:
   Splunk, Dynatrace, pandas, NumPy, scikit-learn, Flask, FastAPI, React, Angular,
   Power BI, Tableau, R / RStudio, DAX, Power Query, data modelling, data warehousing,
   SWIFT messaging (MT/MX), ISO 20022, SEPA, payments processing,
-  ERP integration support, change-management,
-  Claude API / Anthropic SDK / prompt engineering, GitHub Actions, Vercel.
+  ERP integration support, change-management.
 """
 
 # ═══════════════════════════════════════════════════════════════════
@@ -607,9 +598,18 @@ INSTRUCTIONS:
    REST APIs → system integrations / interconnected systems; banking dashboard
    work → payments BA / domain analysis / regulatory implementation.
 
-5. ANCHOR BULLETS TO HARI'S REAL DOMAINS — bullets and projects must be
-   plausible extensions of one of these CONCRETE experience areas in the
-   profile above:
+5. EXPERIENCE BULLETS — DO NOT SKIP ANY JD POINT.
+   Before writing the 6 experience bullets, mentally enumerate EVERY
+   responsibility / required skill / required regulation / required tool in
+   the JD. Then ensure every single one is reflected in at least one bullet.
+   If the JD has 10 listed responsibilities, your 6 bullets must each pack
+   ~2 of them, written densely in the form:
+     "<Action verb> <X tech/methodology from JD> using <Y stack> to achieve
+      <Z business outcome with a metric>."
+   This is more important than elegant prose. A recruiter scanning at
+   30 seconds is looking for keyword density and JD-mirroring.
+
+   Anchor each bullet to one of these concrete experience areas:
      (a) HCL Technologies enterprise SWE work (Java/Spring Boot, Python, SQL,
          AWS, production support, monitoring, CI/CD, change-control, UAT)
      (b) HCL banking/payments domain (SWIFT MT/MX dashboard, payments ops,
@@ -618,26 +618,57 @@ INSTRUCTIONS:
          change management, helpdesk for business-system users)
      (d) MSc Data Analytics @ NCI (Power BI, DAX, Tableau, R, statistics, ML,
          data modelling, BI dashboards, data warehousing)
-     (e) Personal project: ireland-jobs-tracker (Claude API, prompt engineering,
-         AI workflow automation, GitHub Actions, Vercel, full-stack web)
 
-   Whatever the JD asks for, you reframe ONE of (a)-(e) above to sound like it.
-   You may invent specific metrics (%, count, time, throughput) and project
-   names to make the bullets punchy. But you must NOT invent entirely new
-   role profiles outside (a)-(e) — e.g. don't claim L1 desktop support /
-   Active Directory administration / network printer troubleshooting / 500-user
-   helpdesk if the JD is for that, because those are NOT in Hari's profile.
-   Use his real banking/ERP/Power BI/AI/SWE background and reframe it.
+   Reframe one of (a)-(d) to match whatever the JD asks for. Invent
+   specific metrics (%, count, time, throughput) freely to make bullets
+   punchy. Do not invent entirely new role profiles outside (a)-(d) — e.g.
+   don't claim L1 desktop support / AD administration / 500-user helpdesk
+   if the JD is for that. Reframe Hari's banking/ERP/Power BI/SWE background.
 
-6. NEVER CONTRADICT THE JD — if the JD is "Payments BA", write a payments BA
+6. PROJECTS SECTION — INVENT ONE SUBSTANTIAL JD-TAILORED PROJECT.
+   Generate ONE impressive, fictional-but-defensible project that demonstrates
+   Hari has built exactly what the JD describes. The project should:
+     - Have a specific, memorable name that screams the JD's domain. Examples:
+         JD "Payments BA"          → "Cross-Border Payments Reconciliation
+                                       & ISO 20022 Migration Platform"
+         JD "ML Engineer"          → "Real-Time Fraud Detection Pipeline at
+                                       Petabyte Scale"
+         JD "Data Analyst BI"      → "Executive KPI Dashboard Consolidation
+                                       across 12 Business Units (Power BI)"
+         JD "DevOps / Cloud"       → "Multi-Region Kubernetes GitOps Platform
+                                       with Blue-Green Deployment Automation"
+         JD "Frontend / React"     → "Design-System-Driven Customer Portal
+                                       with Reanimated Gesture Library"
+         JD "Backend / Microservices" → "Event-Sourced Notification Mesh
+                                          Powering 10M Daily Messages"
+     - Be framed as work Hari led at HCL OR a personal/portfolio project,
+       depending on JD seniority cues.
+     - Use the JD's exact technical stack and terminology in 4-5 bullets.
+     - Have concrete metrics in every bullet — throughput, latency, accuracy,
+       business impact, $ saved, time reduced, scale.
+     - Sound like a 6-12 month substantial undertaking that combines
+       multiple JD requirements into one cohesive narrative.
+
+   DO NOT cite "ireland-jobs-tracker", any GitHub repo by name, or this
+   resume-generation pipeline in the projects section.
+
+   If a JD has nothing to do with AI/LLMs (most JDs), the projects section
+   should NOT mention Claude / prompt engineering / Anthropic / LLMs /
+   generative AI / RAG.
+
+   Optionally include a SECOND, smaller project bullet block from Hari's
+   HCL banking/SWIFT domain if it adds extra JD coverage — but the primary
+   project must be the JD-tailored fictional one above.
+
+7. NEVER CONTRADICT THE JD — if the JD is "Payments BA", write a payments BA
    resume even if the scraper's 'category' label suggested something else.
-   The JD content is the ground truth, the category is noise.
+   JD content is ground truth, category is noise.
 
-7. MINIMAL FACTUAL ANCHORS — keep these exact facts as written in the profile,
+8. MINIMAL FACTUAL ANCHORS — keep these exact facts as written in the profile,
    do not alter them: candidate name, contact details, employer name & dates
    (HCL Sep 2021 – Jan 2025), education (MSc NCI Feb 2026, BE SNS College 2021),
-   IELTS score. Everything else (bullets, skills, projects, metrics, framings)
-   is yours to construct to match the JD — anchored to areas (a)-(e) above.
+   IELTS score. Everything else (bullets, skills, projects, metrics, framings,
+   project names) is yours to construct to match the JD.
 6. Bullets must use <b>bold</b> tags around key technologies/achievements (HTML).
 7. Skill lines must follow this exact format:
    "<b>Category Name</b>  –  item1, item2, item3."
