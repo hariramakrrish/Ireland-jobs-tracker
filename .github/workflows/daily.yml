@@ -41,6 +41,17 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           cp web/data/jobs.json /tmp/pipeline_jobs.json
+          # Snapshot only the NEW resume PDFs this run produced.
+          # We will rebase onto remote main and only re-apply these — never
+          # restage existing PDFs (those may have been updated by other
+          # workflows that ran in parallel).
+          mkdir -p /tmp/new_resumes
+          git status --porcelain web/resumes/ | awk '$1 ~ /^[?A]/ {print $2}' > /tmp/new_pdfs.list
+          while IFS= read -r p; do
+            [ -n "$p" ] && cp "$p" "/tmp/new_resumes/$(basename "$p")"
+          done < /tmp/new_pdfs.list
+          NEW_PDF_COUNT=$(wc -l < /tmp/new_pdfs.list)
+          echo "Snapshot of $NEW_PDF_COUNT new PDFs taken before rebase"
 
           MAX_ATTEMPTS=5
           attempt=0
@@ -48,9 +59,13 @@ jobs:
             attempt=$((attempt + 1))
             echo "--- Push attempt $attempt of $MAX_ATTEMPTS ---"
             git fetch origin main
-            python3 scripts/smart_merge.py
-            git reset --soft origin/main
-            git add web/data/jobs.json web/resumes/
+            git checkout origin/main -- .                     # hard-rebase to remote
+            python3 scripts/smart_merge.py                    # merge pipeline_jobs.json into jobs.json
+            while IFS= read -r p; do
+              [ -n "$p" ] && [ -f "/tmp/new_resumes/$(basename "$p")" ] && cp "/tmp/new_resumes/$(basename "$p")" "$p"
+            done < /tmp/new_pdfs.list
+            git add web/data/jobs.json
+            while IFS= read -r p; do [ -n "$p" ] && git add "$p"; done < /tmp/new_pdfs.list
             if git diff --cached --quiet; then
               echo "No new data to push."
               exit 0
