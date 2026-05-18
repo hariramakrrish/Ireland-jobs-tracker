@@ -311,7 +311,7 @@ document.getElementById('pending-indicator').addEventListener('click', () => {
 // Auto-refresh jobs.json every 3 minutes so all devices stay in sync
 async function refreshJobsData() {
   try {
-    const r = await fetch('data/jobs.json?t=' + Date.now());
+    const r = await fetch('/api/jobs?t=' + Date.now());
     if (!r.ok) return;
     const fresh = await r.json();
     ALL_JOBS = fresh;
@@ -455,8 +455,9 @@ document.querySelectorAll(".chip[data-status]").forEach(c => {
 });
 document.getElementById("search").addEventListener("input", applyFilters);
 
-// Load data — jobs.json is the cross-device source of truth for statuses
-fetch("data/jobs.json")
+// Load data — Supabase is the cross-device source of truth for statuses,
+// served via /api/jobs (queries the 'jobs' table)
+fetch("/api/jobs")
   .then(r => r.json())
   .then(jobs => {
     ALL_JOBS = jobs;

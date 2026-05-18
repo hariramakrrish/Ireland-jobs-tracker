@@ -2,11 +2,12 @@
 """
 Generate tailored PDF resumes for every job in web/data/jobs.json.
 
-Primary path  : Claude API (claude-haiku-4-5-20251001) generates unique bullets /
-                skills / projects per job, using the stored job description + title +
-                company.  Requires ANTHROPIC_API_KEY env var.
+Primary path  : Groq API (llama-3.3-70b-versatile) with the elite recruiter
+                system prompt generates unique bullets / skills / projects per
+                job, using the stored JD + title + company.
+                Requires GROQ_API_KEY env var.
 
-Fallback path : Static role-based content banks (no API key needed).  Used when
+Fallback path : Static role-based content banks (no API key needed). Used when
                 the API key is absent or the API call fails.
 
 Layout: Vishnu-format, Times font, A4.
@@ -27,14 +28,39 @@ os.makedirs(RESUME_DIR, exist_ok=True)
 
 BLACK = colors.HexColor("#000000")
 
-# ── Try to import anthropic (optional dep) ────────────────────────────────────
+# ── Try to import groq (optional dep) ─────────────────────────────────────────
 try:
-    import anthropic as _anthropic
-    _ANTHROPIC_AVAILABLE = True
+    from groq import Groq as _Groq
+    _GROQ_AVAILABLE = True
 except ImportError:
-    _ANTHROPIC_AVAILABLE = False
+    _GROQ_AVAILABLE = False
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+
+# ── Elite recruiter system prompt (sent on every Groq call) ───────────────────
+ELITE_SYSTEM_PROMPT = """You are an elite, executive-level technical recruiter specializing in matching software engineers and data analysts with high-tier banking, fintech, and enterprise tech positions. Your task is to analyze the user's canonical profile (HARI_PROFILE) and a specific Job Description (JD), then output perfectly tailored resume content.
+
+CRITICAL WRITING STYLE RULES:
+1. NO AI FLUFF OR BUZZWORDS: Absolutely never use the words 'spearheaded', 'leveraged', 'utilized', 'testament', 'revolutionized', 'fostered', 'dynamic', 'robust', 'driven', 'cutting-edge', or 'proven track record'. If you use any of these, the generation is a failure.
+2. GOOGLE X-Y-Z FORMULA: Write every single bullet point using the formula: 'Accomplished [X], as measured by [Y], by doing [Z]'. Lead with a powerful, sophisticated past-tense action verb. Never repeat the same starting verb twice in the same resume.
+3. ABSOLUTE TRUTH: Anchor all bullet points and projects directly to the 5 real experience domains explicitly detailed in HARI_PROFILE (e.g., Banking/SWIFT, HCL, MSc Data Analytics, Power BI, ERP frameworks). Never hallucinate client names, tech stacks, or metrics not grounded in his real background.
+4. ATS KEYWORD MATCHING: Identify the top 5-7 core technical keywords or specific compliance tools from the provided JD. Ensure those exact strings are explicitly woven into the skills array and referenced naturally within your bullet points. Do not use synonyms.
+
+FEW-SHOT TRAINING EXAMPLES:
+
+Example 1 (Financial/SWIFT Queue Processing)
+- JD Requirement: 'Experience handling financial message queues, payment workflows, or SWIFT connectivity.'
+- POOR AI OUTPUT: 'Leveraged SWIFT messaging systems to handle financial data safely and dynamically.'
+- EXCELLENT TAILORED OUTPUT: 'Architected fault-tolerant message consumers to parse inbound SWIFT MT103 transactions, mitigating data packet corruption risks and maintaining a 99.9% processing uptime across high-volume banking rails.'
+
+Example 2 (Data Engineering / Optimization)
+- JD Requirement: 'Strong SQL skills and ability to optimize database query performance for large datasets.'
+- POOR AI OUTPUT: 'Spearheaded the optimization of SQL database queries to make data processing fast.'
+- EXCELLENT TAILORED OUTPUT: 'Refactored inefficient relational database queries and implemented strategic indexing, reducing analytical report execution times by 34% across core ERP database clusters.'
+
+OUTPUT CONFIGURATION:
+You must return your output strictly in a raw JSON object matching the keys: 'bullets' (array of exactly 6 strings), 'skills' (array of 5-7 strings, each in the format "<b>Category</b>  –  item1, item2, item3."), and 'projects' (array of exactly 2 objects, each with keys 'title' (string) and 'bullets' (array of 3 strings)). Do not wrap the JSON in markdown code blocks or add any conversational introduction or conclusion text."""
 
 # ═══════════════════════════════════════════════════════════════════
 # HARI'S PROFILE  (injected into every AI prompt)
@@ -511,54 +537,50 @@ def slug(text):
 # ═══════════════════════════════════════════════════════════════════
 
 def _ai_available():
-    return _ANTHROPIC_AVAILABLE and bool(ANTHROPIC_API_KEY)
+    return _GROQ_AVAILABLE and bool(GROQ_API_KEY)
 
 
 def generate_ai_content(job, retry=2):
     """
-    Call Claude (Haiku) to generate resume bullets/skills/projects tailored
-    ~75-80% to the job's description (or title+company when no description).
+    Call Groq (llama-3.3-70b-versatile) with the elite recruiter system prompt
+    to generate resume bullets/skills/projects tailored to the JD.
 
     Returns (bullets, skills, projects_list) where projects_list is a list of
-    (title_str, [bullet_str, ...]) tuples — same format as the static CONTENT banks.
+    (title_str, [bullet_str, ...]) tuples — same format make_resume() expects.
 
-    Raises on unrecoverable error so the caller can fall back to static.
+    Raises RuntimeError on unrecoverable error so the caller falls back to the
+    static CONTENT templates.
     """
-    client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    client = _Groq(api_key=GROQ_API_KEY)
 
     def _s(val):
         return val if isinstance(val, str) else ""
     title       = _s(job.get("title", "")).strip()
     company     = _s(job.get("company", "")).strip()
-    category    = _s(job.get("category", "")).strip()
     description = (_s(job.get("description")) or "").strip()
 
     if description:
-        jd_block = f"""Full Job Description (use this to tailor content):
+        jd_block = f"""Full Job Description (anchor every bullet/skill/project to this):
 ---
-{description[:4000]}
+{description[:6000]}
 ---"""
     else:
         jd_block = (
-            f"No full job description available. "
-            f"Infer requirements from: Title='{title}', Company='{company}', "
-            f"Role category='{category}'."
+            f"No JD body available. Infer reasonable requirements from: "
+            f"Title='{title}', Company='{company}'."
         )
 
-    prompt = f"""You are writing resume content for a software engineer applying for a specific job.
-
-CANDIDATE PROFILE:
+    user_content = f"""HARI_PROFILE (canonical truth — every bullet must trace back to one of these domains):
 {HARI_PROFILE}
 
 TARGET ROLE:
   Title   : {title}
   Company : {company}
 
-  (Ignore any 'category' label you may infer from elsewhere — it is auto-assigned
-  by the scraper and is frequently WRONG. Read the JD below carefully and let
-  THAT be the only thing you anchor on. e.g. a 'Payments Business Analyst' role
-  must be written as a payments BA resume, not an IT helpdesk resume, even if
-  the scraper guessed wrong.)
+  (Ignore any 'category' label inferred elsewhere — it is auto-assigned by the
+  scraper and is frequently WRONG. The JD body below is the only thing to
+  anchor on. A 'Payments Business Analyst' role must be written as a payments
+  BA resume, not IT helpdesk, even if the scraper miscategorised it.)
 
 {jd_block}
 
@@ -713,21 +735,22 @@ Return ONLY a valid JSON object with this exact structure (no markdown fences):
   ]
 }}
 
-Requirements: exactly 6 experience bullets, 5-7 skill lines, exactly 2 projects."""
+Requirements: exactly 6 experience bullets, 5-7 skill lines, exactly 2 projects.
+Return ONLY the JSON object — no markdown fences, no commentary."""
 
     for attempt in range(retry + 1):
         try:
-            response = client.messages.create(
-                model="claude-haiku-4-5-20251001",
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": ELITE_SYSTEM_PROMPT},
+                    {"role": "user",   "content": user_content},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7,
                 max_tokens=2048,
-                messages=[{"role": "user", "content": prompt}],
             )
-            raw = response.content[0].text.strip()
-
-            # Strip markdown code fences if Claude adds them
-            if raw.startswith("```"):
-                raw = re.sub(r"^```[a-z]*\n?", "", raw)
-                raw = re.sub(r"\n?```$", "", raw.rstrip())
+            raw = response.choices[0].message.content.strip()
 
             data     = json.loads(raw)
             bullets  = data["bullets"]
@@ -735,16 +758,16 @@ Requirements: exactly 6 experience bullets, 5-7 skill lines, exactly 2 projects.
             projects = [(p["title"], p["bullets"]) for p in data["projects"]]
             return bullets, skills, projects
 
-        except (json.JSONDecodeError, KeyError) as e:
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
             if attempt < retry:
                 time.sleep(2)
                 continue
-            raise RuntimeError(f"AI content parse failed after {retry+1} attempts: {e}")
+            raise RuntimeError(f"Groq content parse failed after {retry+1} attempts: {e}")
         except Exception as e:
             if attempt < retry:
                 time.sleep(3)
                 continue
-            raise RuntimeError(f"AI API call failed: {e}")
+            raise RuntimeError(f"Groq API call failed: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -847,9 +870,9 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
 
     use_ai = _ai_available()
     if use_ai:
-        print(f"  🤖  AI-tailored generation enabled (claude-haiku-4-5-20251001)")
+        print(f"  🤖  Groq AI generation enabled (llama-3.3-70b-versatile)")
     else:
-        print(f"  📋  Using static templates (set ANTHROPIC_API_KEY to enable AI generation)")
+        print(f"  📋  Using static templates (set GROQ_API_KEY to enable AI generation)")
 
     generated = skipped = errors = ai_ok = ai_fallback = 0
 

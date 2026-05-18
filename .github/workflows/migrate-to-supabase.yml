@@ -1,0 +1,27 @@
+name: Migrate jobs.json to Supabase (one-time)
+
+# Manual trigger. Reads web/data/jobs.json and upserts every row into the
+# Supabase 'jobs' table. Safe to re-run — UPSERT on the id PK makes it
+# idempotent.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Run migration
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/migrate_to_supabase.py
