@@ -38,7 +38,7 @@ except ImportError:
 MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
 
 
-# ── Elite recruiter system prompt (sent on every Groq call) ───────────────────
+# ── Elite recruiter system prompt (sent on every Mistral call) ────────────────
 ELITE_SYSTEM_PROMPT = """You are an elite, executive-level technical recruiter specializing in matching software engineers and data analysts with high-tier banking, fintech, and enterprise tech positions. Your task is to analyze the user's canonical profile (HARI_PROFILE) and a specific Job Description (JD), then output perfectly tailored resume content.
 
 CRITICAL WRITING STYLE RULES:
