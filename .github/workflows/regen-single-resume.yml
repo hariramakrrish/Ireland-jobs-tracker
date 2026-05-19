@@ -29,7 +29,7 @@ jobs:
 
       - name: Regenerate one resume
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
           JOB_ID:            ${{ github.event.client_payload.jobId }}
           JD_OVERRIDE:       ${{ github.event.client_payload.jd }}
         run: python scripts/regen_single.py

@@ -22,7 +22,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Regenerate targeted resumes
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
         run: python scripts/regen_targeted.py
       - name: Commit and push regenerated resumes
         run: |
