@@ -30,7 +30,7 @@ jobs:
 
       - name: Regenerate resumes (AI-tailored)
         env:
-          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
+          MISTRAL_API_KEY:     ${{ secrets.MISTRAL_API_KEY }}
         run: python scripts/regen_not_applied.py
 
       - name: Commit and push regenerated resumes

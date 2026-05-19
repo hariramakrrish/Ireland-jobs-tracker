@@ -2,10 +2,10 @@
 """
 Generate tailored PDF resumes for every job in web/data/jobs.json.
 
-Primary path  : Groq API (llama-3.3-70b-versatile) with the elite recruiter
+Primary path  : Mistral API (mistral-large-latest) with the elite recruiter
                 system prompt generates unique bullets / skills / projects per
                 job, using the stored JD + title + company.
-                Requires GROQ_API_KEY env var.
+                Requires MISTRAL_API_KEY env var.
 
 Fallback path : Static role-based content banks (no API key needed). Used when
                 the API key is absent or the API call fails.
@@ -28,14 +28,14 @@ os.makedirs(RESUME_DIR, exist_ok=True)
 
 BLACK = colors.HexColor("#000000")
 
-# ── Try to import groq (optional dep) ─────────────────────────────────────────
+# ── Try to import mistralai (optional dep) ────────────────────────────────────
 try:
-    from groq import Groq as _Groq
-    _GROQ_AVAILABLE = True
+    from mistralai import Mistral as _Mistral
+    _MISTRAL_AVAILABLE = True
 except ImportError:
-    _GROQ_AVAILABLE = False
+    _MISTRAL_AVAILABLE = False
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
 
 
 # ── Elite recruiter system prompt (sent on every Groq call) ───────────────────
@@ -574,12 +574,12 @@ def slug(text):
 # ═══════════════════════════════════════════════════════════════════
 
 def _ai_available():
-    return _GROQ_AVAILABLE and bool(GROQ_API_KEY)
+    return _MISTRAL_AVAILABLE and bool(MISTRAL_API_KEY)
 
 
 def generate_ai_content(job, retry=2):
     """
-    Call Groq (llama-3.3-70b-versatile) with the elite recruiter system prompt
+    Call Mistral (mistral-large-latest) with the elite recruiter system prompt
     to generate resume bullets/skills/projects tailored to the JD.
 
     Returns (bullets, skills, projects_list) where projects_list is a list of
@@ -588,7 +588,7 @@ def generate_ai_content(job, retry=2):
     Raises RuntimeError on unrecoverable error so the caller falls back to the
     static CONTENT templates.
     """
-    client = _Groq(api_key=GROQ_API_KEY)
+    client = _Mistral(api_key=MISTRAL_API_KEY)
 
     def _s(val):
         return val if isinstance(val, str) else ""
@@ -777,8 +777,8 @@ Return ONLY the JSON object — no markdown fences, no commentary."""
 
     for attempt in range(retry + 1):
         try:
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            response = client.chat.complete(
+                model="mistral-large-latest",
                 messages=[
                     {"role": "system", "content": ELITE_SYSTEM_PROMPT},
                     {"role": "user",   "content": user_content},
@@ -799,12 +799,12 @@ Return ONLY the JSON object — no markdown fences, no commentary."""
             if attempt < retry:
                 time.sleep(2)
                 continue
-            raise RuntimeError(f"Groq content parse failed after {retry+1} attempts: {e}")
+            raise RuntimeError(f"Mistral content parse failed after {retry+1} attempts: {e}")
         except Exception as e:
             if attempt < retry:
                 time.sleep(3)
                 continue
-            raise RuntimeError(f"Groq API call failed: {e}")
+            raise RuntimeError(f"Mistral API call failed: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -907,9 +907,9 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
 
     use_ai = _ai_available()
     if use_ai:
-        print(f"  🤖  Groq AI generation enabled (llama-3.3-70b-versatile)")
+        print(f"  🤖  Mistral AI generation enabled (mistral-large-latest)")
     else:
-        print(f"  📋  Using static templates (set GROQ_API_KEY to enable AI generation)")
+        print(f"  📋  Using static templates (set MISTRAL_API_KEY to enable AI generation)")
 
     generated = skipped = errors = ai_ok = ai_fallback = 0
 
