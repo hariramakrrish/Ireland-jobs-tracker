@@ -22,7 +22,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Regenerate targeted resumes
         env:
-          MISTRAL_API_KEY:     ${{ secrets.MISTRAL_API_KEY }}
+          GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/regen_targeted.py
       - name: Commit and push regenerated resumes
         run: |

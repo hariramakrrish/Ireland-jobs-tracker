@@ -2,10 +2,10 @@
 """
 Generate tailored PDF resumes for every job in web/data/jobs.json.
 
-Primary path  : Mistral API (mistral-large-latest) with the elite recruiter
-                system prompt generates unique bullets / skills / projects per
-                job, using the stored JD + title + company.
-                Requires MISTRAL_API_KEY env var.
+Primary path  : Google Gemini API (gemini-2.5-flash-lite) with the elite
+                recruiter system prompt generates unique bullets / skills /
+                projects per job, using the stored JD + title + company.
+                Requires GEMINI_API_KEY env var.
 
 Fallback path : Static role-based content banks (no API key needed). Used when
                 the API key is absent or the API call fails.
@@ -28,17 +28,18 @@ os.makedirs(RESUME_DIR, exist_ok=True)
 
 BLACK = colors.HexColor("#000000")
 
-# ── Try to import mistralai (optional dep) ────────────────────────────────────
+# ── Try to import google-genai (optional dep) ─────────────────────────────────
 try:
-    from mistralai import Mistral as _Mistral
-    _MISTRAL_AVAILABLE = True
+    from google import genai as _genai
+    from google.genai import types as _genai_types
+    _GENAI_AVAILABLE = True
 except ImportError:
-    _MISTRAL_AVAILABLE = False
+    _GENAI_AVAILABLE = False
 
-MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 
-# ── Elite recruiter system prompt (sent on every Mistral call) ────────────────
+# ── Elite recruiter system prompt (sent on every Gemini call) ─────────────────
 ELITE_SYSTEM_PROMPT = """You are an elite, executive-level technical recruiter specializing in matching software engineers and data analysts with high-tier banking, fintech, and enterprise tech positions. Your task is to analyze the user's canonical profile (HARI_PROFILE) and a specific Job Description (JD), then output perfectly tailored resume content.
 
 CRITICAL WRITING STYLE RULES:
@@ -574,13 +575,13 @@ def slug(text):
 # ═══════════════════════════════════════════════════════════════════
 
 def _ai_available():
-    return _MISTRAL_AVAILABLE and bool(MISTRAL_API_KEY)
+    return _GENAI_AVAILABLE and bool(GEMINI_API_KEY)
 
 
 def generate_ai_content(job, retry=2):
     """
-    Call Mistral (mistral-large-latest) with the elite recruiter system prompt
-    to generate resume bullets/skills/projects tailored to the JD.
+    Call Google Gemini (gemini-2.5-flash-lite) with the elite recruiter system
+    prompt to generate resume bullets/skills/projects tailored to the JD.
 
     Returns (bullets, skills, projects_list) where projects_list is a list of
     (title_str, [bullet_str, ...]) tuples — same format make_resume() expects.
@@ -588,7 +589,7 @@ def generate_ai_content(job, retry=2):
     Raises RuntimeError on unrecoverable error so the caller falls back to the
     static CONTENT templates.
     """
-    client = _Mistral(api_key=MISTRAL_API_KEY)
+    client = _genai.Client(api_key=GEMINI_API_KEY)
 
     def _s(val):
         return val if isinstance(val, str) else ""
@@ -777,17 +778,16 @@ Return ONLY the JSON object — no markdown fences, no commentary."""
 
     for attempt in range(retry + 1):
         try:
-            response = client.chat.complete(
-                model="mistral-large-latest",
-                messages=[
-                    {"role": "system", "content": ELITE_SYSTEM_PROMPT},
-                    {"role": "user",   "content": user_content},
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.7,
-                max_tokens=2048,
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=user_content,
+                config=_genai_types.GenerateContentConfig(
+                    system_instruction=ELITE_SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    temperature=0.7,
+                ),
             )
-            raw = response.choices[0].message.content.strip()
+            raw = (response.text or "").strip()
 
             data     = json.loads(raw)
             bullets  = data["bullets"]
@@ -799,12 +799,12 @@ Return ONLY the JSON object — no markdown fences, no commentary."""
             if attempt < retry:
                 time.sleep(2)
                 continue
-            raise RuntimeError(f"Mistral content parse failed after {retry+1} attempts: {e}")
+            raise RuntimeError(f"Gemini content parse failed after {retry+1} attempts: {e}")
         except Exception as e:
             if attempt < retry:
                 time.sleep(3)
                 continue
-            raise RuntimeError(f"Mistral API call failed: {e}")
+            raise RuntimeError(f"Gemini API call failed: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -907,9 +907,9 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
 
     use_ai = _ai_available()
     if use_ai:
-        print(f"  🤖  Mistral AI generation enabled (mistral-large-latest)")
+        print(f"  🤖  Gemini AI generation enabled (gemini-2.5-flash-lite)")
     else:
-        print(f"  📋  Using static templates (set MISTRAL_API_KEY to enable AI generation)")
+        print(f"  📋  Using static templates (set GEMINI_API_KEY to enable AI generation)")
 
     generated = skipped = errors = ai_ok = ai_fallback = 0
 
