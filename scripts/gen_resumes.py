@@ -752,8 +752,13 @@ HC-5. EXPERIENCE-BULLET COMPOSITION RULE — EXACTLY 7 BULLETS, SPLIT BY ROLE
       / tools using JD wording. The 7th bullet covers infra/ops as noted.
 
       (a) JAVA / BACKEND-JAVA roles:
-            3× from Hari's experience: Java 8/11/17, Spring Boot, Hibernate,
-                  microservices, REST APIs (drawn naturally from HCL SWE work).
+            3× from Hari's experience — ALL THREE MUST BE JAVA-FLAVOURED.
+                  Hit a different Java sub-topic in each: (i) Spring Boot
+                  REST APIs / microservices, (ii) Hibernate / JPA /
+                  persistence layer, (iii) Java EE / OOP / design patterns
+                  / JUnit / Mockito / Maven|Gradle. NO Python ETL, NO
+                  generic production support, NO Power BI — those are
+                  out-of-category for a Java JD and dilute the resume.
             3× from JD: mirror the JD's specific Java responsibilities (e.g.
                   if JD names design patterns, code reviews, mentoring juniors,
                   sprint planning — each of those becomes a bullet).
