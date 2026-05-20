@@ -18,7 +18,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
-                                 Table, TableStyle)
+                                 Table, TableStyle, HRFlowable)
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 ROOT        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -629,16 +629,51 @@ has chosen because he already has the underlying skills and is ready to defend
 them at interview. Your job is NOT to second-guess his fit. Your job is to
 write a resume that ticks every box in the JD so he gets shortlisted.
 
+STEP 0 — READ THE JD BEFORE WRITING ANYTHING.
+This is the most important step. Before you write a single bullet, read the
+JD top-to-bottom and answer these four questions to yourself (do not output
+them — they are your scratch work, but answering them is mandatory):
+
+   Q1. WHAT DOES THIS COMPANY ACTUALLY DO AND WHAT DOES THIS TEAM BUILD?
+       (e.g. "Chalk builds an ML feature platform written in Rust; this team
+       builds customer-facing implementations of that platform.")
+
+   Q2. WHAT IS THE ROLE SHAPE? Pick exactly one:
+         (i)   PURE ENGINEERING — backend SWE, platform, infra, ML eng.
+                 Day-to-day = writing code, designing systems.
+         (ii)  CUSTOMER-FACING ENGINEERING — Forward Deployed Engineer,
+                 Solutions Engineer, Customer Engineer, Sales Engineer,
+                 Implementation Engineer, Developer Success / Advocate.
+                 Day-to-day = building things WITH and FOR customers,
+                 pre-sales demos, onboarding, requirements gathering.
+         (iii) DATA / ANALYTICS — Data Analyst, BI Analyst, Data Scientist.
+                 Day-to-day = querying, dashboards, statistical analysis.
+         (iv)  BUSINESS ANALYST — requirements, stakeholder interviews,
+                 process mapping, documentation.
+         (v)   SUPPORT / TS — tickets, escalation, on-call, runbooks.
+
+   Q3. WHAT ARE THE TOP 5 SKILLS / TOOLS / DOMAIN CONCEPTS THE JD NAMES?
+       (Use the JD's exact wording. These must appear verbatim in skills
+       and at least 2-3 of them in experience bullets.)
+
+   Q4. WHAT WOULD A REAL ENGINEER APPLYING TO THIS JD HAVE WORKED ON
+       IN THEIR LAST ROLE? Describe the work that would match this role
+       in your head, then write bullets describing THAT work (anchored to
+       Hari's HCL employment, dates, and education — see facts list below).
+
+If the JD is short or low-quality (e.g. scraped from Indeed / LinkedIn with
+just a title and 2 lines), infer the role shape and stack from the job title
+and the company name. Never assume "default backend SWE" — always derive
+from the JD.
+
 INSTRUCTIONS:
-1. AIM FOR 75–80% JD COVERAGE — NOT 100%. Read the JD carefully. Cover the
-   core skills/tools/responsibilities credibly, but DO NOT try to cram every
-   single JD requirement into bullets. A resume that ticks every box reads as
-   AI-generated and fake. Pick the strongest 75–80% of JD points — the ones
-   that align most naturally with Hari's HCL SWE / financial-services / MSc
-   Data Analytics background — and leave the remaining 20–25% uncovered in
-   experience bullets (they can still appear in the skills array — see rule 4).
-   The resume should sound like a real engineer with overlapping but not
-   identical experience, not a synthetic perfect-match document.
+1. AIM FOR 75–80% JD COVERAGE — NOT 100%. Cover the core skills, tools, and
+   responsibilities credibly, but DO NOT cram every single JD requirement
+   into bullets. A resume that ticks every box reads as AI-generated. Pick
+   the strongest 75–80% of JD points and leave the remaining 20–25%
+   uncovered in experience (they can still appear in the skills array —
+   see rule 4). The resume should sound like a real engineer with
+   overlapping but not identical experience, not a synthetic perfect match.
 
 2. CLAIM CONFIDENTLY, NO HEDGING — write as if Hari has every skill the JD
    asks for. Never use phrases like "exposure to", "familiarity with", "basic
@@ -679,64 +714,89 @@ INSTRUCTIONS:
    Each bullet should:
      - Lead with a strong past-tense verb (no repeats within the resume).
      - Describe a real-sounding piece of work, not a JD-keyword sandwich.
-     - Include ONE specific metric where it's plausible — not every bullet
-       needs a metric. Forced metrics on every line scream AI.
      - Sound like something Hari would say out loud in an interview.
 
-   Anchor each bullet to one of these concrete experience areas:
-     (a) HCL Technologies enterprise SWE work (Java/Spring Boot, Python, SQL,
-         AWS, production support, monitoring, CI/CD, change-control, UAT)
-     (b) HCL financial-services domain (payments operations dashboard,
-         transaction monitoring, reconciliation, GDPR, BAs, audit/regulatory
-         awareness — described generically, no standard names)
-     (c) HCL ERP & enterprise business systems (ERP support, integrations,
-         change management, helpdesk for business-system users)
-     (d) MSc Data Analytics @ NCI (Power BI, DAX, Tableau, R, statistics, ML,
-         data modelling, BI dashboards, data warehousing)
+   WRITE THE BULLETS FROM THE JD, NOT FROM A FIXED ANCHOR LIST.
+   Do NOT default to "payments operations dashboard" or "Power BI dashboards
+   for stakeholders" unless the JD is genuinely about payments or BI. Based
+   on your Q4 answer from STEP 0 ("what would a real engineer applying to
+   THIS jd have worked on in their last role?"), invent plausible day-to-day
+   work that maps to the JD's actual domain, framed as having happened at
+   HCL Technologies between Sep 2021 and Jan 2025. Bullets are free-form
+   in their content — but the EMPLOYER, DATES, EDUCATION, and TOTAL YEARS
+   are fixed facts you cannot change (see rule 8).
 
-   Reframe one of (a)-(d) to match whatever the JD asks for. Invent
-   specific metrics (%, count, time, throughput) freely to make bullets
-   punchy. Do not invent entirely new role profiles outside (a)-(d) — e.g.
-   don't claim L1 desktop support / AD administration / 500-user helpdesk
-   if the JD is for that. Reframe Hari's banking/ERP/Power BI/SWE background.
+   ROLE-SHAPE OVERLAY (from STEP 0, Q2):
+     - If shape is CUSTOMER-FACING ENGINEERING (FDE / SE / Customer Engineer /
+       Sales Engineer / Implementation Engineer / Developer Success), AT
+       LEAST 2 of the 6 bullets must describe customer/stakeholder work:
+       requirements gathering with clients, onboarding new customers,
+       integration into customer environments, technical demos, pre-sales
+       or post-sales technical support, presenting to stakeholders.
+     - If shape is DATA / ANALYTICS, bullets lean toward querying, modelling,
+       dashboards, business stakeholder communication.
+     - If shape is BUSINESS ANALYST, bullets lean toward stakeholder
+       interviews, requirements documentation, process mapping, UAT.
+     - If shape is SUPPORT / TS, bullets lean toward ticket flow, escalation,
+       on-call runbooks, customer triage.
+     - If shape is PURE ENGINEERING, bullets describe engineering work.
 
-6. PROJECTS SECTION — TWO REALISTIC, DOMAIN-ALIGNED PROJECTS.
-   Generate exactly TWO projects (per output spec). Both projects align with
-   the JD's DOMAIN and the kind of problems that team solves — NOT with
-   surface JD keywords or the company name.
+   METRIC REALISM — STRICTLY ENFORCED:
+     - Only ~50% of bullets should carry a metric. Three bullets with NO
+       number is correct.
+     - BANNED metrics (overused and obviously fake): 99%, 99.5%, 99.9%,
+       99.95%, 99.99%, 100% uptime, "zero downtime", 10,000 / 100,000 /
+       1M / "1 million daily transactions". Never use these numbers.
+     - PREFERRED metric shape: oddly-specific numbers a real engineer
+       might have measured — "37%", "~3,200 events/sec", "12 dashboards",
+       "an 8-person team", "p99 latency of 280ms", "cut deploy time from
+       45 min to 18 min". Asymmetric numbers feel measured; round numbers
+       feel invented.
+     - Never claim a scale a 3.5-year engineer wouldn't deliver: no
+       "$4M saved annually", no "scaled to 100M users", no "led a team
+       of 30 engineers".
 
-   CRITICAL RULES FOR PROJECT NAMES:
-     - NEVER name a project after the hiring company. For a JP Morgan JD,
-       do not write "JP Morgan Risk Platform". For a Chalk JD, do not write
-       "Chalk Feature Pipeline". For a Stripe JD, do not write "Stripe API
-       Gateway". These are dead giveaways that the resume was tailored by
-       a script.
-     - NEVER copy JD job-title phrases verbatim as a project name (e.g. JD
-       title "Forward Deployed Engineer" → don't name a project "Forward
-       Deployed Engineering Platform"). Describe the problem, not the role.
-     - Use generic but evocative names that describe the problem domain or
-       the system built. Good shape: "<Problem-Domain> <System-Type>" or
-       "<What-it-Does> <Platform/Pipeline/Dashboard>". Examples:
-         JD "ML feature platform"  → "Real-Time Feature Pipeline for Fraud
-                                       Detection Models"
-         JD "Payments BA"          → "Payments Reconciliation & Transaction
-                                       Monitoring Dashboard"
-         JD "Data analyst BI"      → "Operations KPI Dashboard for a
-                                       Logistics Business Unit"
-         JD "Backend microservices"→ "Event-Driven Notification Service for
-                                       Multi-Tenant SaaS"
-         JD "DevOps / Cloud"       → "GitOps Deployment Pipeline for
-                                       Multi-Region Kubernetes Workloads"
+6. PROJECTS SECTION — TWO PROJECTS DERIVED FROM THE JD.
 
-   PROJECT CONTENT RULES:
-     - Each project: 3 bullets, written like real work. Concrete tech stack
-       drawn from the JD where it fits naturally. Metrics where plausible,
-       not forced on every line.
-     - One project should feel like work Hari extended from his HCL
-       experience (banking-dashboard / data-pipeline / production-engineering
-       flavour, described generically); the other can be a stronger
-       JD-aligned project framed as portfolio / MSc capstone / extended HCL
-       project.
+   STEP 6A — THINK FIRST (this is mandatory reasoning, do not skip):
+     Re-read your STEP 0 answers (what does this team build, what is the
+     role shape, what are the top skills). Then answer to yourself:
+       "What two projects, if Hari had built them, would make a hiring
+        engineer at THIS company say: 'this person has done what we need'?"
+     The two projects should TOGETHER cover the core technical work the JD
+     asks for, plus (if customer-facing) one project that demonstrates
+     ability to ship things for/with customers.
+
+   STEP 6B — PROJECT NAMES:
+     - NEVER name a project after the hiring company. No "Chalk Feature
+       Pipeline", no "Stripe Payments API", no "JP Morgan Risk Engine".
+     - NEVER copy the JD's job title verbatim as a project name. No
+       "Forward Deployed Engineering Platform" for an FDE role.
+     - NEVER use buzzword sandwiches like "Real-Time / At Scale /
+       Multi-Region / Petabyte-Scale" unless the JD is explicitly about
+       that scale. A 3.5-year engineer's portfolio does not include
+       "Real-Time Fraud Detection at Petabyte Scale".
+     - Names should describe the problem domain or system in 4-7 words.
+       Sound like an internal project name a small team would use.
+
+   STEP 6C — PROJECT CONTENT:
+     - Each project: exactly 3 bullets, real-sounding work.
+     - Tech stack pulled from the JD where it fits naturally — no random
+       extras to pad keyword density.
+     - Metric realism applies here too: NOT every bullet has a number,
+       and any number must be realistic for a portfolio / MSc capstone /
+       extended HCL project (no "billions", no "99.9%").
+     - For ML-flavoured JDs: AT LEAST one project must include a real
+       MODEL-TRAINING bullet (the model, the dataset, the metric — e.g.
+       "trained a gradient-boosted classifier on a 280k-row dataset,
+       reaching ~0.87 AUC"), not just feature engineering or pipelines.
+     - For customer-facing JDs: AT LEAST one project should describe work
+       done with a real or hypothetical client/stakeholder (e.g. "rebuilt
+       the onboarding flow for a pilot enterprise customer, reducing
+       time-to-first-event from 6 weeks to 9 days").
+     - Project 1 = sized like 3-9 months of work.
+     - Project 2 = sized like 2-6 months of work. Can be a portfolio
+       project, MSc capstone, or extended HCL work — whichever fits.
      - Do NOT pack every JD requirement into the projects either — same
        75–80% rule. Real projects don't tick every box.
 
@@ -840,71 +900,71 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
     # (compress=1 can produce tiny PDFs whose story is already consumed when
     # we try to rebuild, resulting in a blank 931-byte file.)
     doc = SimpleDocTemplate(filename, pagesize=A4,
-        leftMargin=1.8*cm, rightMargin=1.8*cm,
-        topMargin=1.5*cm, bottomMargin=1.5*cm,
+        leftMargin=1.6*cm, rightMargin=1.6*cm,
+        topMargin=1.3*cm, bottomMargin=1.3*cm,
         compress=0)
     W = doc.width
 
-    name_s      = ParagraphStyle("name",  fontName="Times-Bold",   fontSize=24, textColor=BLACK, alignment=TA_CENTER, spaceAfter=5, leading=28)
-    contact_s   = ParagraphStyle("con",   fontName="Times-Roman",  fontSize=10.5, textColor=BLACK, alignment=TA_CENTER, spaceAfter=2, leading=14)
-    sec_s       = ParagraphStyle("sec",   fontName="Times-Bold",   fontSize=13, textColor=BLACK, alignment=TA_CENTER, spaceAfter=5, spaceBefore=10, leading=16)
-    job_left_s  = ParagraphStyle("jl",    fontName="Times-Bold",   fontSize=11, textColor=BLACK, alignment=TA_LEFT,   leading=14)
-    job_right_s = ParagraphStyle("jr",    fontName="Times-Bold",   fontSize=11, textColor=BLACK, alignment=TA_RIGHT,  leading=14)
-    bullet_s    = ParagraphStyle("bul",   fontName="Times-Roman",  fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, leading=14.5, spaceAfter=3, leftIndent=15, firstLineIndent=-11)
-    skill_s     = ParagraphStyle("sk",    fontName="Times-Roman",  fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, leading=14.5, spaceAfter=2)
-    proj_s      = ParagraphStyle("pt",    fontName="Times-Bold",   fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, spaceAfter=2, spaceBefore=4, leading=14)
-    cert_s      = ParagraphStyle("cert",  fontName="Times-Roman",  fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, leading=14.5, spaceAfter=3, leftIndent=15, firstLineIndent=-11)
+    RULE_COLOR = colors.HexColor("#222222")
+    SUB_COLOR  = colors.HexColor("#555555")
+
+    name_s      = ParagraphStyle("name",  fontName="Helvetica-Bold", fontSize=20, textColor=BLACK, alignment=TA_CENTER, spaceAfter=2,  leading=24, letterSpacing=0.6)
+    contact_s   = ParagraphStyle("con",   fontName="Helvetica",      fontSize=9.5, textColor=SUB_COLOR, alignment=TA_CENTER, spaceAfter=0,  leading=12)
+    sec_s       = ParagraphStyle("sec",   fontName="Helvetica-Bold", fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, spaceAfter=2,  spaceBefore=10, leading=13, letterSpacing=1.2)
+    job_left_s  = ParagraphStyle("jl",    fontName="Helvetica-Bold", fontSize=10.5, textColor=BLACK, alignment=TA_LEFT,  leading=13)
+    job_right_s = ParagraphStyle("jr",    fontName="Helvetica",      fontSize=9.5,  textColor=SUB_COLOR, alignment=TA_RIGHT, leading=13)
+    bullet_s    = ParagraphStyle("bul",   fontName="Helvetica",      fontSize=10,   textColor=BLACK, alignment=TA_LEFT, leading=13.5, spaceAfter=2, leftIndent=12, firstLineIndent=-10)
+    skill_s     = ParagraphStyle("sk",    fontName="Helvetica",      fontSize=10,   textColor=BLACK, alignment=TA_LEFT, leading=13.5, spaceAfter=2)
+    proj_s      = ParagraphStyle("pt",    fontName="Helvetica-Bold", fontSize=10.5, textColor=BLACK, alignment=TA_LEFT, spaceAfter=1, spaceBefore=5, leading=13)
+    cert_s      = ParagraphStyle("cert",  fontName="Helvetica",      fontSize=10,   textColor=BLACK, alignment=TA_LEFT, leading=13.5, spaceAfter=2, leftIndent=12, firstLineIndent=-10)
 
     def section_header(title):
-        return [Spacer(1, 4), Paragraph(f"<u>{title}</u>", sec_s)]
+        # Left-aligned section title with a thin rule below — cleaner than centered+underlined
+        para = Paragraph(title.upper(), sec_s)
+        rule = HRFlowable(width="100%", thickness=0.6, color=RULE_COLOR, spaceBefore=0, spaceAfter=4, lineCap="round")
+        return [para, rule]
 
     def role_header(left_text, right_text):
         tbl = Table([[Paragraph(left_text, job_left_s), Paragraph(right_text, job_right_s)]],
-                    colWidths=[W * 0.68, W * 0.32])
+                    colWidths=[W * 0.70, W * 0.30])
         tbl.setStyle(TableStyle([
             ("VALIGN",        (0,0),(-1,-1),"MIDDLE"),
             ("LEFTPADDING",   (0,0),(-1,-1),0), ("RIGHTPADDING",(0,0),(-1,-1),0),
-            ("TOPPADDING",    (0,0),(-1,-1),2), ("BOTTOMPADDING",(0,0),(-1,-1),4),
-            ("LINEBELOW",     (0,0),(-1, 0),1.0, BLACK),
+            ("TOPPADDING",    (0,0),(-1,-1),0), ("BOTTOMPADDING",(0,0),(-1,-1),2),
         ]))
         return tbl
 
     story = []
     story.append(Paragraph("HARIRAMAKRRISHNAN RAMACHANDRAN", name_s))
     story.append(Paragraph(
-        '+353 899706156  |  hariramakrrish@gmail.com  |  '
+        '+353 89 970 6156  &nbsp;•&nbsp;  hariramakrrish@gmail.com  &nbsp;•&nbsp;  '
         '<a href="https://www.linkedin.com/in/hariramakrrish/" color="#0070C0"><u>LinkedIn</u></a>'
-        '  |  <b>Stamp 1G</b> — Eligible to work full-time in Ireland', contact_s))
+        '  &nbsp;•&nbsp;  Dublin, Ireland  &nbsp;•&nbsp;  <b>Stamp 1G — Full-Time Work Eligible</b>', contact_s))
 
-    story += section_header("PROFESSIONAL EXPERIENCE")
-    story.append(role_header("SOFTWARE ENGINEER  –  HCL Technologies  |  Chennai, India", "09/2021 – 01/2025  (3.5 Years)"))
-    story.append(Spacer(1, 5))
+    story += section_header("Professional Experience")
+    story.append(role_header("Software Engineer  —  HCL Technologies, Chennai, India", "Sep 2021 – Jan 2025"))
+    story.append(Spacer(1, 3))
     for b in exp_bullets:
-        story.append(Paragraph(f"•  {b}", bullet_s))
+        story.append(Paragraph(f"•&nbsp;&nbsp;{b}", bullet_s))
 
-    story += section_header("SKILLS")
-    story.append(Spacer(1, 2))
+    story += section_header("Skills")
     for sk in skills:
         story.append(Paragraph(sk, skill_s))
 
-    story += section_header("EDUCATION AND TRAINING")
-    story.append(Spacer(1, 3))
-    story.append(role_header("MASTER OF SCIENCE in Data Analytics  –  <b>National College of Ireland</b>, Dublin", "02/2026"))
-    story.append(Spacer(1, 6))
-    story.append(role_header("BACHELOR OF ENGINEERING in Computer Science  –  <b>SNS College of Technology</b>, Coimbatore, India", "01/2021"))
-    story.append(Spacer(1, 4))
-
-    story += section_header("PROJECTS")
-    story.append(Spacer(1, 2))
+    story += section_header("Projects")
     for ptitle, pbullets in proj_list:
         story.append(Paragraph(ptitle, proj_s))
         for b in pbullets:
-            story.append(Paragraph(f"•  {b}", bullet_s))
+            story.append(Paragraph(f"•&nbsp;&nbsp;{b}", bullet_s))
 
-    story += section_header("ACHIEVEMENTS & CERTIFICATIONS")
+    story += section_header("Education")
+    story.append(role_header("M.Sc. Data Analytics  —  National College of Ireland, Dublin", "Feb 2026"))
     story.append(Spacer(1, 2))
+    story.append(role_header("B.E. Computer Science  —  SNS College of Technology, Coimbatore, India", "2021"))
+
+    story += section_header("Certifications")
     for c in certs:
-        story.append(Paragraph(f"•  {c}", cert_s))
+        story.append(Paragraph(f"•&nbsp;&nbsp;{c}", cert_s))
 
     doc.build(story)
 
