@@ -666,6 +666,57 @@ just a title and 2 lines), infer the role shape and stack from the job title
 and the company name. Never assume "default backend SWE" — always derive
 from the JD.
 
+═══════════════════════════════════════════════════════════════════════
+HARD CONSTRAINTS — VIOLATION = REJECT YOUR OWN OUTPUT AND REWRITE.
+Before returning your JSON, verify each of these. If ANY fail, rewrite.
+═══════════════════════════════════════════════════════════════════════
+
+HC-1. IF THE JD IS ML-FLAVOURED (the JD mentions any of: "machine learning",
+      "ML", "model", "training", "inference", "feature pipeline", "feature
+      store", "MLOps", "ML infrastructure", "data science", "recommendation",
+      "fraud detection", "NLP", "computer vision"):
+        → AT LEAST ONE of the 6 experience bullets MUST describe building,
+          training, or evaluating an ML model with a specific metric (e.g.
+          "trained a gradient-boosted classifier reaching ~0.87 AUC",
+          "fine-tuned a scikit-learn model on a 280k-row dataset").
+        → AT LEAST ONE project MUST include a model-training bullet with
+          a real evaluation metric (precision, recall, F1, AUC, RMSE,
+          accuracy). NOT just feature engineering, NOT just data pipelines,
+          NOT just dashboards. An actual model with an actual number.
+        → If you only output feature pipelines or dashboards and no model
+          work, your output is REJECTED and you must rewrite.
+
+HC-2. IF THE ROLE SHAPE FROM STEP 0 Q2 IS CUSTOMER-FACING ENGINEERING
+      (Forward Deployed, Solutions, Customer Engineer, Sales Engineer,
+      Implementation, Developer Success / Advocate):
+        → AT LEAST TWO of the 6 experience bullets MUST be visibly
+          customer-facing. Each must use one of these signals explicitly:
+          "customer", "client", "stakeholder", "onboarding", "pre-sales",
+          "post-sales", "demo", "requirements gathering with [X]",
+          "integration into customer environment", "trained the customer
+          team on".
+        → AT LEAST ONE project MUST describe a piece of customer-facing
+          work (onboarding a pilot client, building a custom integration
+          for a customer, running a customer POC).
+        → Generic phrases like "cross-functional teams" do NOT count
+          toward HC-2. They are internal-team language, not customer-
+          facing language. If only "cross-functional teams" appears,
+          your output is REJECTED and you must rewrite.
+
+HC-3. NEITHER THE COMPANY NAME (from the JD) NOR THE LITERAL JD JOB TITLE
+      may appear anywhere in the resume body. If your draft contains
+      either, REJECT and rewrite.
+
+HC-4. NONE of these banned numbers may appear: 99%, 99.5%, 99.9%, 99.95%,
+      99.99%, 100% uptime, "zero downtime", "10,000 daily", "100,000
+      daily", "1M daily", "1 million daily". If any appear, REJECT and
+      rewrite with realistic, oddly-specific numbers.
+
+After drafting, mentally check HC-1 through HC-4 in order. Only return the
+JSON once all four pass.
+
+═══════════════════════════════════════════════════════════════════════
+
 INSTRUCTIONS:
 1. AIM FOR 75–80% JD COVERAGE — NOT 100%. Cover the core skills, tools, and
    responsibilities credibly, but DO NOT cram every single JD requirement
