@@ -426,24 +426,62 @@ async function changeStatus(id, sel) {
   }
 }
 
+// Filter state lives in the URL hash (e.g. #cat=Java&status=Not+Applied&q=python)
+// AND mirrors to localStorage as a backup. URL hash is the source of truth
+// because it survives EVERY type of navigation: tab eviction, BFCache, full
+// reload, private mode, bookmarks, link sharing. localStorage is the fallback
+// for the case where the user opens / fresh after a tab evict.
 const FILTER_KEY = "tracker_filters_v1";
+
+function readState() {
+  // 1. Try URL hash first (most reliable across iOS tab evictions)
+  const h = (window.location.hash || "").replace(/^#/, "");
+  if (h) {
+    const params = new URLSearchParams(h);
+    return {
+      cat:    params.get("cat")    || "all",
+      status: params.get("status") || "all",
+      q:      params.get("q")      || ""
+    };
+  }
+  // 2. Fall back to localStorage
+  try {
+    const saved = JSON.parse(localStorage.getItem(FILTER_KEY) || "null");
+    if (saved) return saved;
+  } catch(e) {}
+  return null;
+}
+
+function writeState(state) {
+  // Update URL hash WITHOUT triggering a page reload or history entry.
+  const params = new URLSearchParams();
+  if (state.cat    && state.cat    !== "all") params.set("cat",    state.cat);
+  if (state.status && state.status !== "all") params.set("status", state.status);
+  if (state.q)                                 params.set("q",     state.q);
+  const newHash = params.toString();
+  const newUrl  = window.location.pathname + window.location.search +
+                  (newHash ? "#" + newHash : "");
+  try { window.history.replaceState(null, "", newUrl); } catch(e) {
+    // Fallback for any browser that blocks history API
+    if (newHash) window.location.hash = newHash;
+  }
+  // Also mirror to localStorage as backup
+  try { localStorage.setItem(FILTER_KEY, JSON.stringify(state)); } catch(e) {}
+}
 
 function persistFilters() {
   const q      = document.getElementById("search").value;
   const catEl  = document.querySelector("#cat-filters .chip.active[data-cat]");
   const stEl   = document.querySelector(".chip.active[data-status]");
-  try {
-    localStorage.setItem(FILTER_KEY, JSON.stringify({
-      cat:    catEl ? catEl.dataset.cat   : "all",
-      status: stEl  ? stEl.dataset.status : "all",
-      q:      q || ""
-    }));
-  } catch(e) {}
+  writeState({
+    cat:    catEl ? catEl.dataset.cat   : "all",
+    status: stEl  ? stEl.dataset.status : "all",
+    q:      q || ""
+  });
 }
 
 function restoreFilters() {
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(FILTER_KEY) || "null"); } catch(e) {}
+  const saved = readState();
   if (!saved) return;
   // restore category chip
   document.querySelectorAll(".chip[data-cat]").forEach(c => {
