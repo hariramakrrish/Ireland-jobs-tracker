@@ -843,8 +843,78 @@ HC-5. EXPERIENCE-BULLET COMPOSITION RULE — EXACTLY 7 BULLETS, SPLIT BY ROLE
       rewrite. If the composition doesn't match the split above for the
       detected category, REJECT and rewrite.
 
-After drafting, mentally check HC-1 through HC-4 in order. Only return the
-JSON once all four pass.
+HC-6. PROJECT-CATEGORY LOCK — BOTH PROJECTS MUST MATCH THE JD'S CATEGORY.
+      No exceptions, no "second project from a different stack to show range".
+      A Java JD gets two Java projects. A Python JD gets two Python projects.
+      A Cloud JD gets two cloud/DevOps projects. Etc.
+
+      For the detected category from HC-5, BOTH project titles AND ≥2 of
+      the 3 bullets in each project MUST contain at least one of the
+      category's signal keywords below. If even ONE project fails this
+      check, REJECT and rewrite that project. Signals (case-insensitive):
+
+      (a) JAVA          → Java, Spring, Spring Boot, Hibernate, JPA, Java EE,
+                          JUnit, Mockito, Maven, Gradle, Kafka, microservice
+                          (Java context). FORBIDDEN: Python ETL, pandas,
+                          Power BI, Tableau, Dash, scikit-learn as the
+                          primary subject.
+      (b) PYTHON        → Python, pandas, NumPy, FastAPI, Flask, asyncio,
+                          PySpark, dbt, Airflow, scikit-learn, Celery.
+                          FORBIDDEN: Spring Boot / Java as the primary
+                          subject, Power BI dashboards.
+      (c) CLOUD/DEVOPS  → AWS, GCP, Azure, Terraform, Helm, Kubernetes,
+                          Docker, ArgoCD, CI/CD, IaC, EKS, GKE, AKS.
+                          FORBIDDEN: pure application-code projects with
+                          no infra component, Power BI dashboards.
+      (d) IT SUPPORT    → ticketing, helpdesk, end-user, AD / Active
+                          Directory, Intune, MDM, Windows / macOS imaging,
+                          M365, ServiceNow, Jira Service Desk. FORBIDDEN:
+                          ML model training, Spring Boot microservices.
+      (e) DATA/DS/BI    → SQL, ETL, pandas, Power BI, Tableau, Looker,
+                          dashboard, statistical, A/B, regression, ML model.
+                          (For ML JDs, HC-1 still requires one project to
+                          train a model with a metric.)
+      (f) AI/GENAI/LLM  → LLM, RAG, vector DB, embedding, LangChain,
+                          fine-tune, prompt, transformer, FastAPI inference,
+                          model serving. FORBIDDEN: pure Power BI projects,
+                          pure CRUD Spring Boot projects with no AI.
+      (g) FRONTEND/MOB  → React, Vue, Angular, TypeScript, Next.js,
+                          component library, design system, accessibility,
+                          state management, React Native, Swift, Kotlin.
+                          FORBIDDEN: pure backend Java/Python projects,
+                          ETL projects.
+      (h) SRE/SUPPORT   → SLO, SLI, error budget, on-call, incident,
+                          observability, Prometheus, Grafana, Datadog,
+                          PagerDuty, runbook, postmortem.
+
+      SELF-VERIFY: Before returning JSON, read both project titles and
+      bullets. Confirm each project contains ≥1 signal keyword from the
+      category list above. If a project's primary subject doesn't match,
+      REJECT it and rewrite from scratch — do not just rename it.
+
+      Special case: if HC-1 fires (ML-flavoured JD), the second project
+      can stretch HC-6 to the extent of training a model on the JD's
+      domain — but the model bullet MUST still contain a real metric.
+
+═══════════════════════════════════════════════════════════════════════
+FINAL VERIFICATION CHECKLIST — RUN THIS BEFORE RETURNING JSON.
+═══════════════════════════════════════════════════════════════════════
+Walk through every one of these. If any fail, fix and re-check.
+  □ HC-1 (if ML JD): one experience bullet trains a model with a metric;
+                     one project trains a model with a metric.
+  □ HC-2 (if customer-facing JD): ≥2 experience bullets contain explicit
+                                  customer/client/stakeholder/onboarding
+                                  language (not "cross-functional teams").
+  □ HC-3: hiring company name and JD job title appear NOWHERE in body.
+  □ HC-4: no banned numbers (99.x%, 100% uptime, 10k/100k/1M daily).
+  □ HC-5: exactly 7 experience bullets, composed per the category split.
+          For Java JDs specifically, the Hibernate/JPA bullet exists.
+  □ HC-6: both projects contain ≥1 category signal keyword in the
+          title or bullets. Off-category projects rewritten, not renamed.
+  □ Banned fluff words absent: spearheaded, leveraged, leveraging,
+    utilized, utilising, testament, revolutionized, fostered, dynamic,
+    robust, driven, cutting-edge, proven track record.
+  □ JSON is well-formed and matches the schema exactly.
 
 ═══════════════════════════════════════════════════════════════════════
 
