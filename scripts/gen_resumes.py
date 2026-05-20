@@ -118,6 +118,7 @@ Example 4 (ML feature platform — customer-facing engineering JD, demonstrates 
     bullets[3]: 'Ran post-sales technical demos and walkthrough sessions for two customer engineering teams adopting our internal ML platform, including pair-debugging integration issues during their first month in production.'  ← HC-2 ✓
     bullets[4]: 'Designed and shipped REST APIs in Java Spring Boot for cross-service data exchange between the feature store and consumer applications, including request validation and circuit-breaker patterns.'
     bullets[5]: 'Wrote production runbooks and internal documentation that the customer onboarding team now uses to bring new clients live in ~10 days instead of 4+ weeks.'  ← HC-2 ✓
+    bullets[6]: 'Containerised the feature-pipeline services with Docker and deployed them to a Kubernetes cluster (EKS), wiring up Helm chart configuration and basic resource limits for predictable rollout.'  ← HC-5 7th-bullet ✓
 
     projects[0] (Customer Onboarding Playbook for an ML Feature Store):
       'Worked directly with two pilot customers to design and ship a guided onboarding flow for an internal ML feature store, including SDK examples, debug tooling, and a checklist that compressed time-to-first-feature from ~6 weeks to 9 days.'
@@ -130,7 +131,7 @@ Example 4 (ML feature platform — customer-facing engineering JD, demonstrates 
       'Packaged the model behind a FastAPI inference endpoint with input validation, p95 latency around 180ms, and basic feature-drift logging.'
 
 OUTPUT CONFIGURATION:
-You must return your output strictly in a raw JSON object matching the keys: 'bullets' (array of exactly 6 strings), 'skills' (array of 5-7 strings, each in the format "<b>Category</b>  –  item1, item2, item3."), and 'projects' (array of exactly 2 objects, each with keys 'title' (string) and 'bullets' (array of 3 strings)). Do not wrap the JSON in markdown code blocks or add any conversational introduction or conclusion text."""
+You must return your output strictly in a raw JSON object matching the keys: 'bullets' (array of exactly 7 strings), 'skills' (array of 5-7 strings, each in the format "<b>Category</b>  –  item1, item2, item3."), and 'projects' (array of exactly 2 objects, each with keys 'title' (string) and 'bullets' (array of 3 strings)). Do not wrap the JSON in markdown code blocks or add any conversational introduction or conclusion text."""
 
 # ═══════════════════════════════════════════════════════════════════
 # HARI'S PROFILE  (injected into every AI prompt)
@@ -705,7 +706,7 @@ HC-1. IF THE JD IS ML-FLAVOURED (the JD mentions any of: "machine learning",
       "ML", "model", "training", "inference", "feature pipeline", "feature
       store", "MLOps", "ML infrastructure", "data science", "recommendation",
       "fraud detection", "NLP", "computer vision"):
-        → AT LEAST ONE of the 6 experience bullets MUST describe building,
+        → AT LEAST ONE of the 7 experience bullets MUST describe building,
           training, or evaluating an ML model with a specific metric (e.g.
           "trained a gradient-boosted classifier reaching ~0.87 AUC",
           "fine-tuned a scikit-learn model on a 280k-row dataset").
@@ -719,7 +720,7 @@ HC-1. IF THE JD IS ML-FLAVOURED (the JD mentions any of: "machine learning",
 HC-2. IF THE ROLE SHAPE FROM STEP 0 Q2 IS CUSTOMER-FACING ENGINEERING
       (Forward Deployed, Solutions, Customer Engineer, Sales Engineer,
       Implementation, Developer Success / Advocate):
-        → AT LEAST TWO of the 6 experience bullets MUST be visibly
+        → AT LEAST TWO of the 7 experience bullets MUST be visibly
           customer-facing. Each must use one of these signals explicitly:
           "customer", "client", "stakeholder", "onboarding", "pre-sales",
           "post-sales", "demo", "requirements gathering with [X]",
@@ -741,6 +742,85 @@ HC-4. NONE of these banned numbers may appear: 99%, 99.5%, 99.9%, 99.95%,
       99.99%, 100% uptime, "zero downtime", "10,000 daily", "100,000
       daily", "1M daily", "1 million daily". If any appear, REJECT and
       rewrite with realistic, oddly-specific numbers.
+
+HC-5. EXPERIENCE-BULLET COMPOSITION RULE — EXACTLY 7 BULLETS, SPLIT BY ROLE
+      CATEGORY. Categorise the JD into ONE of these buckets, then build the
+      7 experience bullets to the exact split below. This is the SHAPE of
+      the experience section — non-negotiable. The 3 "from Hari's experience"
+      bullets describe real-sounding work he could have done at HCL on that
+      stack. The 3 "from JD" bullets mirror the JD's named responsibilities
+      / tools using JD wording. The 7th bullet covers infra/ops as noted.
+
+      (a) JAVA / BACKEND-JAVA roles:
+            3× from Hari's experience: Java 8/11/17, Spring Boot, Hibernate,
+                  microservices, REST APIs (drawn naturally from HCL SWE work).
+            3× from JD: mirror the JD's specific Java responsibilities (e.g.
+                  if JD names design patterns, code reviews, mentoring juniors,
+                  sprint planning — each of those becomes a bullet).
+            1× Docker / Kubernetes / cloud-storage bullet (AWS, GCP, Azure
+                  whatever the JD names; else AWS).
+
+      (b) PYTHON / BACKEND-PYTHON roles:
+            3× from Hari's experience: Python scripting, ETL pipelines,
+                  pandas/NumPy automation work.
+            3× from JD: mirror the JD's Python-specific responsibilities.
+            1× Docker / Kubernetes / cloud bullet.
+
+      (c) CLOUD / DEVOPS / SRE-CLOUD roles (cloud engineer, cloud platform,
+          DevOps, infra, AWS/GCP/Azure engineer — NOT SRE incident-response):
+            3× cloud-combined: AWS (EC2/S3/Lambda/CloudWatch), CI/CD with
+                  Jenkins, infrastructure-as-code where plausible.
+            3× from JD: mirror the JD's cloud-specific tools (Terraform,
+                  Helm, ArgoCD, EKS, GKE — whatever the JD names).
+            1× Kubernetes / Docker bullet.
+
+      (d) IT SUPPORT / HELPDESK / DESKTOP-SUPPORT / ICT-SUPPORT roles:
+            3-4× directly from JD: mirror the JD's support stack (ticketing
+                  system, OS, end-user tooling, escalation procedure).
+            3-4× thoughtful additions from Hari's HCL support work that
+                  plausibly extend the JD's coverage (so the total is 7).
+                  Pick what most strengthens the application; avoid filler.
+
+      (e) DATA ANALYST / DATA SCIENTIST / BI / ML JOBS:
+            3× from Hari's experience: pandas/NumPy/SQL data work, MSc
+                  Data Analytics ML coursework, Power BI / Tableau where
+                  the JD touches BI.
+            3× from JD: mirror the JD's specific tools / methods (e.g.
+                  PySpark, dbt, Looker, SageMaker, A/B testing).
+            1× own choice — usually a deployment / pipeline / cloud bullet.
+            (NOTE: HC-1 still applies if the JD is ML-flavoured — one of
+            these 7 bullets must train a model with a metric.)
+
+      (f) AI / GENAI / LLM ENGINEER roles:
+            3× Java+Python combined: backend service work that serves
+                  models or AI APIs (FastAPI / Spring Boot in front of an
+                  ML model, Python pipeline, REST contracts).
+            3× from JD: mirror JD's AI stack (LangChain, RAG, vector DBs,
+                  fine-tuning, prompt engineering).
+            1× Docker / Kubernetes / scaling bullet.
+
+      (g) OTHER DEV (React / Vue / Angular / Frontend / Mobile / Full-Stack):
+            3× from Hari's experience: React work (Hari has React + Angular
+                  full-stack background — frame these credibly).
+            3× from JD: mirror JD's frontend stack (TypeScript, state mgmt,
+                  testing frameworks, design system).
+            1× Docker / build-pipeline / CI bullet.
+
+      (h) SUPPORT / SRE / PRODUCTION-SUPPORT / INCIDENT-RESPONSE roles:
+            3× incident-response from Hari's HCL background (Splunk /
+                  Dynatrace monitoring, P1/P2 incident triage, root cause
+                  analysis, SLA management, on-call rotation).
+            3× from JD: mirror JD's specific reliability stack (PagerDuty,
+                  Datadog, Grafana, error budgets, postmortems).
+            1× OS / Linux / shell scripting bullet.
+
+      If the JD is genuinely a hybrid (e.g. "Full-Stack Java + AWS"), pick
+      the dominant flavour from the title and primary responsibilities and
+      apply that split; do not invent a new split.
+
+      VIOLATION CHECK: count your bullets. If not exactly 7, REJECT and
+      rewrite. If the composition doesn't match the split above for the
+      detected category, REJECT and rewrite.
 
 After drafting, mentally check HC-1 through HC-4 in order. Only return the
 JSON once all four pass.
@@ -783,7 +863,7 @@ INSTRUCTIONS:
    work → payments BA / domain analysis / regulatory implementation.
 
 5. EXPERIENCE BULLETS — REALISTIC, NOT KEYWORD-STUFFED.
-   Write 6 experience bullets that read like a real engineer's resume — each
+   Write 7 experience bullets that read like a real engineer's resume — each
    bullet describes ONE coherent piece of work, not 2-3 JD requirements
    crammed together. Pick the JD requirements that align most naturally with
    Hari's actual HCL/MSc background and write those credibly. Skip the JD
@@ -939,7 +1019,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown fences):
   ]
 }}
 
-Requirements: exactly 6 experience bullets, 5-7 skill lines, exactly 2 projects.
+Requirements: exactly 7 experience bullets, 5-7 skill lines, exactly 2 projects.
 Return ONLY the JSON object — no markdown fences, no commentary."""
 
     for attempt in range(retry + 1):
