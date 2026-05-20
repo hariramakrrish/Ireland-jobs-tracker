@@ -752,18 +752,34 @@ HC-5. EXPERIENCE-BULLET COMPOSITION RULE — EXACTLY 7 BULLETS, SPLIT BY ROLE
       / tools using JD wording. The 7th bullet covers infra/ops as noted.
 
       (a) JAVA / BACKEND-JAVA roles:
-            3× from Hari's experience — ALL THREE MUST BE JAVA-FLAVOURED.
-                  Hit a different Java sub-topic in each: (i) Spring Boot
-                  REST APIs / microservices, (ii) Hibernate / JPA /
-                  persistence layer, (iii) Java EE / OOP / design patterns
-                  / JUnit / Mockito / Maven|Gradle. NO Python ETL, NO
-                  generic production support, NO Power BI — those are
-                  out-of-category for a Java JD and dilute the resume.
-            3× from JD: mirror the JD's specific Java responsibilities (e.g.
-                  if JD names design patterns, code reviews, mentoring juniors,
-                  sprint planning — each of those becomes a bullet).
-            1× Docker / Kubernetes / cloud-storage bullet (AWS, GCP, Azure
-                  whatever the JD names; else AWS).
+            3× from Hari's experience — ALL THREE MUST BE JAVA-FLAVOURED,
+                  EACH HITTING A DIFFERENT JAVA SUB-TOPIC:
+                    (i)   Spring Boot REST APIs / microservices.
+                    (ii)  Hibernate / JPA / persistence layer — this bullet
+                          MUST explicitly contain the word "Hibernate" or
+                          "JPA". If your draft has neither, REJECT and rewrite.
+                    (iii) Java EE / OOP / design patterns / JUnit / Mockito /
+                          Maven|Gradle.
+                  FORBIDDEN bullet flavours in the Hari-experience trio for
+                  a Java JD: Python ETL, generic production-support / SLA /
+                  P1-P2 incident bullets, Power BI / Tableau dashboards,
+                  payments-operations dashboard work. If any of those
+                  appear, REJECT and rewrite — they dilute a Java resume.
+            3× from JD: mirror the JD's specific Java responsibilities
+                  (code reviews, mentoring juniors, sprint planning /
+                  technical estimation, agile ceremonies, NoSQL exposure,
+                  problem-solving / debugging — pick the 3 most prominent
+                  from THIS JD).
+            1× Docker / Kubernetes / cloud bullet (AWS, GCP, Azure —
+                  whichever the JD names; else AWS).
+
+            PROJECTS for Java JDs — BOTH must be Java-flavoured. NO Python
+            ETL projects, NO Power BI / Tableau projects, NO MSc data-
+            analytics projects. Examples of acceptable shapes:
+              • "Enterprise Java Modernisation — Spring Boot + Hibernate"
+              • "Event-Driven Java Microservice Mesh (Kafka + Spring Cloud)"
+              • "Java REST API for [domain] with JPA + PostgreSQL"
+              • "Java/Spring Boot Notification Service with JUnit coverage"
 
       (b) PYTHON / BACKEND-PYTHON roles:
             3× from Hari's experience: Python scripting, ETL pipelines,
