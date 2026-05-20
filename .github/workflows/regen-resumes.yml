@@ -38,22 +38,54 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Stash PDFs, hard-reset everything else to remote, re-apply PDFs.
-          # Prevents the prior bug where `git reset --soft` left stale
-          # non-PDF files (jobs.json) in the index and clobbered unrelated
-          # edits landed on main while the workflow ran.
+          # Snapshot all new/modified PDFs OUTSIDE the repo before the retry
+          # loop, then on each attempt hard-reset HEAD to the latest remote
+          # main and re-apply the snapshot. This guarantees the new commit
+          # is parented on the freshest remote tip, so concurrent pushes
+          # from other workflows (daily.yml, regen-single, etc.) don't
+          # produce non-fast-forward rejections.
+          #
+          # Previous bug: `git checkout origin/main -- .` updated the
+          # working tree and index but NOT HEAD, so every retry's commit
+          # was parented on the stale starting HEAD and rejected.
+          mkdir -p /tmp/new_resumes
+          git status --porcelain web/resumes/ \
+            | awk '$1 ~ /^(\?\?|A|AM|M|MM| M)/ {sub(/^...|^.. /, ""); print}' \
+            > /tmp/new_pdfs.list
+          # Fallback: if the awk parse missed anything, capture by raw diff too.
+          git ls-files --others --exclude-standard web/resumes/ >> /tmp/new_pdfs.list
+          git diff --name-only web/resumes/                     >> /tmp/new_pdfs.list
+          sort -u /tmp/new_pdfs.list -o /tmp/new_pdfs.list
+          NEW_PDF_COUNT=$(grep -c . /tmp/new_pdfs.list || echo 0)
+          echo "Snapshotting $NEW_PDF_COUNT new/changed PDFs to /tmp/new_resumes/"
+          while IFS= read -r p; do
+            [ -n "$p" ] && [ -f "$p" ] && cp "$p" "/tmp/new_resumes/$(basename "$p")"
+          done < /tmp/new_pdfs.list
+
+          if [ "$NEW_PDF_COUNT" = "0" ]; then
+            echo "No new resumes produced — nothing to push."
+            exit 0
+          fi
+
           MAX_ATTEMPTS=5
           attempt=0
           while [ $attempt -lt $MAX_ATTEMPTS ]; do
             attempt=$((attempt + 1))
             echo "--- Push attempt $attempt of $MAX_ATTEMPTS ---"
             git fetch origin main
-            git stash push -- web/resumes/ >/dev/null || true
-            git checkout origin/main -- .
-            git stash pop >/dev/null || true
+            # HARD-RESET HEAD to remote main so the new commit is parented
+            # on the latest tip. This destroys the in-tree PDFs, which is
+            # why we snapshotted them above.
+            git reset --hard origin/main
+            # Re-apply the snapshotted PDFs onto the fresh tree.
+            while IFS= read -r p; do
+              [ -n "$p" ] && [ -f "/tmp/new_resumes/$(basename "$p")" ] \
+                && mkdir -p "$(dirname "$p")" \
+                && cp "/tmp/new_resumes/$(basename "$p")" "$p"
+            done < /tmp/new_pdfs.list
             git add web/resumes/
             if git diff --cached --quiet; then
-              echo "No new resumes to push."
+              echo "Nothing new to commit after reset — assuming already pushed."
               exit 0
             fi
             COUNT=$(git diff --cached --name-only | wc -l)
@@ -62,8 +94,7 @@ jobs:
               echo "Push succeeded on attempt $attempt."
               exit 0
             fi
-            echo "Push rejected — retrying..."
-            git reset HEAD~1
+            echo "Push rejected — fetching latest and retrying..."
             sleep 10
           done
 
