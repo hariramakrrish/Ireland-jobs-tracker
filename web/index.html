@@ -308,22 +308,41 @@ document.getElementById('pending-indicator').addEventListener('click', () => {
   }
 });
 
-// Auto-refresh jobs.json every 3 minutes so all devices stay in sync
+// Auto-refresh jobs.json every 3 minutes so all devices stay in sync.
+// CRITICAL: after re-rendering the table we MUST re-apply filters and
+// restore scroll position, otherwise the user sees the entire table flash
+// to unfiltered + scroll-to-top every refresh (= the "tab refresh" bug).
+let lastRefreshAt = Date.now();
 async function refreshJobsData() {
   try {
     const r = await fetch('/api/jobs?t=' + Date.now());
     if (!r.ok) return;
     const fresh = await r.json();
+    // Skip re-render if data is identical (no point flashing the table for nothing)
+    const sig = JSON.stringify(fresh.map(j => [j.id, j.status]));
+    if (sig === window.__lastJobsSig) { lastRefreshAt = Date.now(); return; }
+    window.__lastJobsSig = sig;
+    // Preserve scroll position across the re-render
+    const scrollY = window.scrollY || 0;
     ALL_JOBS = fresh;
     renderTable(fresh);
+    restoreFilters();
+    applyFilters();
+    requestAnimationFrame(() => window.scrollTo(0, scrollY));
     if (Object.keys(pending).length > 0) flushPending();
+    lastRefreshAt = Date.now();
   } catch(e) {}
 }
 setInterval(refreshJobsData, 3 * 60 * 1000);
 
-// Also refresh when user switches back to this tab (critical for mobile→Mac flow)
+// Refresh when user returns to the tab — BUT only if it's been >60 seconds
+// since the last refresh. Quick tab-switches (apply→back) don't trigger a
+// re-fetch, so the page stays exactly as the user left it. Only after a
+// genuine long absence do we sync.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') refreshJobsData();
+  if (document.visibilityState !== 'visible') return;
+  if (Date.now() - lastRefreshAt < 60 * 1000) return;
+  refreshJobsData();
 });
 </script>
 
