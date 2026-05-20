@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <title>Hari – Ireland Job Tracker</title>
 <style>
   :root {
@@ -488,6 +491,33 @@ document.querySelectorAll(".chip[data-status]").forEach(c => {
 });
 document.getElementById("search").addEventListener("input", applyFilters);
 
+// Restore chip + search state IMMEDIATELY at page load — chips and search
+// box are static HTML, so they exist before the /api/jobs fetch resolves.
+// This means the visible chip state is correct from the very first frame,
+// even on slow mobile networks where /api/jobs can take 2-3s.
+restoreFilters();
+
+// Persist scroll position too, so clicking Apply → coming back lands you
+// on the same row instead of at the top of the table.
+const SCROLL_KEY = "tracker_scroll_v1";
+window.addEventListener("scroll", () => {
+  try { sessionStorage.setItem(SCROLL_KEY, String(window.scrollY || 0)); } catch(e) {}
+}, { passive: true });
+
+// Restore on pageshow (fires on initial load AND when iOS Safari restores
+// the page from BFCache after the user comes back from the apply tab).
+window.addEventListener("pageshow", (e) => {
+  // Re-apply filters in case BFCache restore lost the table render state.
+  if (e.persisted) {
+    restoreFilters();
+    applyFilters();
+  }
+  try {
+    const y = parseInt(sessionStorage.getItem(SCROLL_KEY) || "0", 10);
+    if (y > 0) requestAnimationFrame(() => window.scrollTo(0, y));
+  } catch(e) {}
+});
+
 // Load data — Supabase is the cross-device source of truth for statuses,
 // served via /api/jobs (queries the 'jobs' table)
 fetch("/api/jobs")
@@ -495,11 +525,16 @@ fetch("/api/jobs")
   .then(jobs => {
     ALL_JOBS = jobs;
     renderTable(jobs);
-    restoreFilters();
-    applyFilters();
+    restoreFilters();   // chips may have been clobbered during render
+    applyFilters();     // hide rows that don't match
     const dates = jobs.map(j=>j.added).filter(Boolean).sort();
     const last  = dates[dates.length-1];
     if (last) document.getElementById("last-updated").textContent = `Last updated: ${last}`;
+    // Restore scroll once rows are visible
+    try {
+      const y = parseInt(sessionStorage.getItem(SCROLL_KEY) || "0", 10);
+      if (y > 0) requestAnimationFrame(() => window.scrollTo(0, y));
+    } catch(e) {}
   })
   .catch(() => {
     document.getElementById("jobs-body").innerHTML =
