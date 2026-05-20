@@ -18,7 +18,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
-                                 Table, TableStyle, HRFlowable)
+                                 Table, TableStyle, HRFlowable, PageBreak)
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 ROOT        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1019,8 +1019,7 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
     story.append(Paragraph("HARIRAMAKRRISHNAN RAMACHANDRAN", name_s))
     story.append(Paragraph(
         '+353 89 970 6156  &nbsp;•&nbsp;  hariramakrrish@gmail.com  &nbsp;•&nbsp;  '
-        '<a href="https://www.linkedin.com/in/hariramakrrish/" color="#0070C0"><u>LinkedIn</u></a>'
-        '  &nbsp;•&nbsp;  Dublin, Ireland  &nbsp;•&nbsp;  <b>Stamp 1G — Full-Time Work Eligible</b>', contact_s))
+        'Dublin, Ireland  &nbsp;•&nbsp;  <b>Stamp 1G — Full-Time Work Eligible</b>', contact_s))
 
     story += section_header("Professional Experience")
     story.append(role_header("Software Engineer  —  HCL Technologies, Chennai, India", "Sep 2021 – Jan 2025"))
@@ -1043,6 +1042,8 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
     story.append(Spacer(1, 2))
     story.append(role_header("B.E. Computer Science  —  SNS College of Technology, Coimbatore, India", "2021"))
 
+    # Force Certifications onto page 2 — page 1 ends after Education.
+    story.append(PageBreak())
     story += section_header("Certifications")
     for c in certs:
         story.append(Paragraph(f"•&nbsp;&nbsp;{c}", cert_s))
