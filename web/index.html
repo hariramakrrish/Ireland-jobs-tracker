@@ -3,9 +3,6 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta http-equiv="Pragma" content="no-cache"/>
-<meta http-equiv="Expires" content="0"/>
 <title>Hari – Ireland Job Tracker</title>
 <style>
   :root {
@@ -545,10 +542,14 @@ window.addEventListener("scroll", () => {
 // Restore on pageshow (fires on initial load AND when iOS Safari restores
 // the page from BFCache after the user comes back from the apply tab).
 window.addEventListener("pageshow", (e) => {
-  // Re-apply filters in case BFCache restore lost the table render state.
+  // BFCache restore: page is exactly as user left it — table populated,
+  // filters applied, scroll position intact. Do NOT re-fetch or re-render
+  // (that's what was causing the 1-second flicker). Just re-confirm
+  // filters in case they got out of sync.
   if (e.persisted) {
     restoreFilters();
     applyFilters();
+    return;
   }
   try {
     const y = parseInt(sessionStorage.getItem(SCROLL_KEY) || "0", 10);
@@ -557,27 +558,31 @@ window.addEventListener("pageshow", (e) => {
 });
 
 // Load data — Supabase is the cross-device source of truth for statuses,
-// served via /api/jobs (queries the 'jobs' table)
-fetch("/api/jobs")
-  .then(r => r.json())
-  .then(jobs => {
-    ALL_JOBS = jobs;
-    renderTable(jobs);
-    restoreFilters();   // chips may have been clobbered during render
-    applyFilters();     // hide rows that don't match
-    const dates = jobs.map(j=>j.added).filter(Boolean).sort();
-    const last  = dates[dates.length-1];
-    if (last) document.getElementById("last-updated").textContent = `Last updated: ${last}`;
-    // Restore scroll once rows are visible
-    try {
-      const y = parseInt(sessionStorage.getItem(SCROLL_KEY) || "0", 10);
-      if (y > 0) requestAnimationFrame(() => window.scrollTo(0, y));
-    } catch(e) {}
-  })
-  .catch(() => {
-    document.getElementById("jobs-body").innerHTML =
-      '<tr><td colspan="9" class="empty">Could not load jobs.json</td></tr>';
-  });
+// served via /api/jobs (queries the 'jobs' table). Only fetch on a TRUE
+// fresh load (not a BFCache restore — that's handled above).
+function loadJobs() {
+  fetch("/api/jobs")
+    .then(r => r.json())
+    .then(jobs => {
+      ALL_JOBS = jobs;
+      renderTable(jobs);
+      restoreFilters();   // chips may have been clobbered during render
+      applyFilters();     // hide rows that don't match
+      const dates = jobs.map(j=>j.added).filter(Boolean).sort();
+      const last  = dates[dates.length-1];
+      if (last) document.getElementById("last-updated").textContent = `Last updated: ${last}`;
+      // Restore scroll once rows are visible
+      try {
+        const y = parseInt(sessionStorage.getItem(SCROLL_KEY) || "0", 10);
+        if (y > 0) requestAnimationFrame(() => window.scrollTo(0, y));
+      } catch(e) {}
+    })
+    .catch(() => {
+      document.getElementById("jobs-body").innerHTML =
+        '<tr><td colspan="9" class="empty">Could not load jobs.json</td></tr>';
+    });
+}
+loadJobs();
 
 // ── Regenerate-resume modal ──────────────────────────────────────────
 let regenJobId = null;
