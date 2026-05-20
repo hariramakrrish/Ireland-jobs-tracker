@@ -423,6 +423,38 @@ async function changeStatus(id, sel) {
   }
 }
 
+const FILTER_KEY = "tracker_filters_v1";
+
+function persistFilters() {
+  const q      = document.getElementById("search").value;
+  const catEl  = document.querySelector("#cat-filters .chip.active[data-cat]");
+  const stEl   = document.querySelector(".chip.active[data-status]");
+  try {
+    localStorage.setItem(FILTER_KEY, JSON.stringify({
+      cat:    catEl ? catEl.dataset.cat   : "all",
+      status: stEl  ? stEl.dataset.status : "all",
+      q:      q || ""
+    }));
+  } catch(e) {}
+}
+
+function restoreFilters() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(FILTER_KEY) || "null"); } catch(e) {}
+  if (!saved) return;
+  // restore category chip
+  document.querySelectorAll(".chip[data-cat]").forEach(c => {
+    c.classList.toggle("active", c.dataset.cat === (saved.cat || "all"));
+  });
+  // restore status chip
+  document.querySelectorAll(".chip[data-status]").forEach(c => {
+    c.classList.toggle("active", c.dataset.status === (saved.status || "all"));
+  });
+  // restore search box
+  const s = document.getElementById("search");
+  if (s && saved.q) s.value = saved.q;
+}
+
 function applyFilters() {
   const q      = document.getElementById("search").value.toLowerCase();
   const catEl  = document.querySelector("#cat-filters .chip.active[data-cat]");
@@ -436,6 +468,7 @@ function applyFilters() {
     const matchQ   = !q || r.textContent.toLowerCase().includes(q);
     r.style.display = (matchCat && matchSt && matchQ) ? "" : "none";
   });
+  persistFilters();
 }
 
 // Chips
@@ -462,6 +495,8 @@ fetch("/api/jobs")
   .then(jobs => {
     ALL_JOBS = jobs;
     renderTable(jobs);
+    restoreFilters();
+    applyFilters();
     const dates = jobs.map(j=>j.added).filter(Boolean).sort();
     const last  = dates[dates.length-1];
     if (last) document.getElementById("last-updated").textContent = `Last updated: ${last}`;
