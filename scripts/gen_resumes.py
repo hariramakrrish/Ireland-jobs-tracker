@@ -87,7 +87,8 @@ FEW-SHOT TRAINING EXAMPLES:
 Example 1 (Payments operations dashboard — banking JD)
 - JD Requirement: 'Experience handling financial message queues, payment workflows, or transaction monitoring.'
 - POOR AI OUTPUT: 'Leveraged SWIFT messaging and ISO 20022 standards to handle financial data safely and dynamically.'  ← FORBIDDEN: never name SWIFT, MT103, ISO 20022, SEPA, PSD2.
-- EXCELLENT TAILORED OUTPUT: 'Built fault-tolerant Java consumers for a payments operations dashboard, parsing inbound transaction messages and surfacing alerting for failed payments, sustaining 99.9% processing uptime across high-volume financial-services workflows.'
+- POOR AI OUTPUT 2: 'Built consumers for a payments dashboard, sustaining 99.9% processing uptime across high-volume workflows.'  ← FORBIDDEN: 99.9% is a banned metric (HC-4).
+- EXCELLENT TAILORED OUTPUT: 'Built fault-tolerant Java consumers for a payments operations dashboard, parsing inbound transaction messages and surfacing alerting for ~3,200 failed payments per week across the team's monitored queues.'
 
 Example 2 (Data Engineering / Optimization — analytics JD)
 - JD Requirement: 'Strong SQL skills and ability to optimize database query performance for large datasets.'
@@ -98,6 +99,35 @@ Example 3 (IoT / Device Backend — NON-banking JD, demonstrates domain isolatio
 - JD Requirement: 'Device identity, authentication and security; large-scale Linux device fleet management; TypeScript (Node.js / NestJS), PostgreSQL, Rust, Kubernetes.'
 - POOR AI OUTPUT (banking-leakage failure): 'Implemented device identity, authentication, and security using ISO 20022 and SEPA standards to ensure 100% compliance.'  ← ISO 20022 and SEPA are BANKING standards, completely irrelevant to IoT device auth. This is the exact failure mode to avoid.
 - EXCELLENT TAILORED OUTPUT: 'Designed mutual-TLS device identity and certificate rotation for a 5,000-node Linux controller fleet, integrating short-lived tokens issued by a NestJS auth service backed by PostgreSQL, eliminating credential drift incidents across rolling fleet updates.'
+
+Example 4 (ML feature platform — customer-facing engineering JD, demonstrates HC-1 + HC-2 compliance)
+- JD: 'Forward Deployed Engineer at an ML feature-platform startup. Build feature pipelines for customers in fraud, recommendations, healthcare. Work pre-sales and post-sales with customer engineering teams. Python, SQL, ML/MLOps a plus.'
+
+- POOR AI OUTPUT (HC-1 + HC-2 failure — dashboards default, no model, weak customer signal):
+    bullets[0]: 'Built interactive Power BI dashboards for stakeholders, improving decision-making speed by 20%.'
+    bullets[1]: 'Engineered Python pipelines to ingest data for ML model training.'
+    bullets[2]: 'Collaborated with cross-functional teams to deliver features.'
+    projects[0]: 'Customer Feature Pipeline Implementation — built a Python pipeline to ingest data for ML training, integrated with AWS, collaborated with client leads.'
+    projects[1]: 'Interactive Sales Dashboard — Power BI dashboard, DAX measures, published to stakeholders.'
+  ← FAILS HC-1: no model is actually trained anywhere, no AUC / precision / accuracy. FAILS HC-2: only "cross-functional teams" and "client leads" — too vague.
+
+- EXCELLENT TAILORED OUTPUT (passes HC-1 + HC-2):
+    bullets[0]: 'Acted as primary technical contact during onboarding for three enterprise customers, gathering feature-pipeline requirements directly with their data science teams and translating them into Python implementations.'  ← HC-2 ✓
+    bullets[1]: 'Trained a gradient-boosted classifier (scikit-learn) on a ~280k-row labelled transactions dataset to flag suspicious activity for an internal anti-abuse workflow, reaching ~0.86 AUC on held-out data.'  ← HC-1 ✓
+    bullets[2]: 'Built Python feature pipelines on AWS Lambda + S3 to power downstream ML scoring, handling roughly 3,500 events/sec at the peak hour and replacing a brittle scheduled-batch job.'
+    bullets[3]: 'Ran post-sales technical demos and walkthrough sessions for two customer engineering teams adopting our internal ML platform, including pair-debugging integration issues during their first month in production.'  ← HC-2 ✓
+    bullets[4]: 'Designed and shipped REST APIs in Java Spring Boot for cross-service data exchange between the feature store and consumer applications, including request validation and circuit-breaker patterns.'
+    bullets[5]: 'Wrote production runbooks and internal documentation that the customer onboarding team now uses to bring new clients live in ~10 days instead of 4+ weeks.'  ← HC-2 ✓
+
+    projects[0] (Customer Onboarding Playbook for an ML Feature Store):
+      'Worked directly with two pilot customers to design and ship a guided onboarding flow for an internal ML feature store, including SDK examples, debug tooling, and a checklist that compressed time-to-first-feature from ~6 weeks to 9 days.'
+      'Built a Python CLI to validate customer feature definitions against the platform schema before submission, catching ~70% of schema errors at write time instead of at training time.'
+      'Documented common integration patterns and ran two follow-up workshops with the customer data teams to upskill their internal engineers.'  ← HC-2 ✓ (customer-facing project)
+
+    projects[1] (Fraud-Detection Model on Transaction Features):
+      'Engineered a feature pipeline in Python and SQL to extract behavioural signals (velocity, geo-distance, device-fingerprint) from a transaction log of roughly 1.1M records.'
+      'Trained a LightGBM classifier on the resulting features, tuning class weights to handle the 1:140 fraud imbalance and reaching ~0.91 AUC / 0.46 F1 on a held-out month.'  ← HC-1 ✓ (real model + real metrics)
+      'Packaged the model behind a FastAPI inference endpoint with input validation, p95 latency around 180ms, and basic feature-drift logging.'
 
 OUTPUT CONFIGURATION:
 You must return your output strictly in a raw JSON object matching the keys: 'bullets' (array of exactly 6 strings), 'skills' (array of 5-7 strings, each in the format "<b>Category</b>  –  item1, item2, item3."), and 'projects' (array of exactly 2 objects, each with keys 'title' (string) and 'bullets' (array of 3 strings)). Do not wrap the JSON in markdown code blocks or add any conversational introduction or conclusion text."""
