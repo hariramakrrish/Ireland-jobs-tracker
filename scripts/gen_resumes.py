@@ -738,6 +738,33 @@ HC-3. NEITHER THE COMPANY NAME (from the JD) NOR THE LITERAL JD JOB TITLE
       may appear anywhere in the resume body. If your draft contains
       either, REJECT and rewrite.
 
+HC-3b. NEVER FABRICATE SPECIFIC NAMED REAL-WORLD CLIENT PROJECTS, SITES,
+      OR LOCATIONS. Hari worked at HCL Technologies on a financial-services
+      operations dashboard for an unnamed banking client. He has NEVER
+      worked on:
+        - any named Irish infrastructure project ("Drogheda WWTP",
+          "Dublin Port Tunnel", "Mater Hospital expansion", "Dublin Metro",
+          "Galway Bypass", "ESB Moneypoint", etc.)
+        - any named bank's named programme ("JP Morgan AML Migration",
+          "Mastercard Token Service Rollout", "AIB Core Banking Refresh",
+          "Citi Velocity Platform", etc.)
+        - any named hospital, council, university, or government project
+        - any named product owned by the HIRING company (e.g. "Stripe
+          Atlas", "Chalk Feature Store", "Cisco Webex Backend")
+        - any named startup product Hari did not actually build
+        - any specific named geographic site or facility
+      If you need to describe project context, use GENERIC phrasing:
+        ✓ "a regional infrastructure delivery programme"
+        ✓ "a payments operations dashboard for a financial-services client"
+        ✓ "an internal data-quality service for an enterprise customer"
+        ✗ "the Drogheda WWTP upgrade"
+        ✗ "the AIB SEPA migration"
+        ✗ "the Mater Hospital EHR rollout"
+      If your draft contains ANY proper noun that names a specific real-
+      world project, site, location, government body, hospital, council,
+      or third-party product Hari didn't personally build, REJECT and
+      rewrite using generic phrasing.
+
 HC-4. NONE of these banned numbers may appear: 99%, 99.5%, 99.9%, 99.95%,
       99.99%, 100% uptime, "zero downtime", "10,000 daily", "100,000
       daily", "1M daily", "1 million daily". If any appear, REJECT and
