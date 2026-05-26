@@ -1221,7 +1221,29 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
 
     doc.build(story)
 
-    # Size check is no longer needed — compress=0 is always used above.
+    # ── Minimum-size guard for portals that reject tiny files ──────────────
+    # Some applicant-tracking systems (e.g. IrishJobs.ie via Reperio Talent)
+    # enforce a minimum file size — IrishJobs requires ≥8 KB. Our typical
+    # uncompressed PDF lands around 5-6 KB, which gets rejected as "Upload
+    # failed". Append PDF comment bytes after %%EOF until the file is at
+    # least 10 KB (safety margin above the 8 KB floor we've seen).
+    #
+    # PDF readers ignore any bytes after the trailing %%EOF marker, so this
+    # is safe and does not affect the visible content of the resume.
+    MIN_BYTES = 10 * 1024
+    try:
+        cur = os.path.getsize(filename)
+        if cur < MIN_BYTES:
+            pad_needed = MIN_BYTES - cur
+            # PDF comments start with `%` and run to the next newline. We
+            # write one big comment block of harmless filler bytes.
+            pad_line = b"% padding " + (b"X" * 64) + b"\n"
+            n_lines = (pad_needed // len(pad_line)) + 1
+            with open(filename, "ab") as fh:
+                fh.write(b"\n")
+                fh.write(pad_line * n_lines)
+    except OSError:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════════
