@@ -21,10 +21,53 @@ SENIOR = re.compile(
     re.IGNORECASE,
 )
 
+def kill_zombie_apify_runs():
+    """
+    Abort any RUNNING actor runs owned by this Apify token before starting fresh.
+
+    Why: the free tier has an 8 GB concurrent-actor-memory cap. If a previous
+    pipeline run crashed mid-execution (Python exception after .call() but
+    before completion), the actor on Apify's side keeps running and holds
+    its memory allocation forever. After 2-3 crashes the cap is fully
+    saturated and the next run can't start any new actors.
+
+    This cleanup runs first, every time, so we always start with a clean
+    memory budget.
+    """
+    token = os.environ.get("APIFY_TOKEN", "")
+    if not token:
+        print("  ⚠  APIFY_TOKEN not set — skipping zombie cleanup")
+        return
+    try:
+        from apify_client import ApifyClient
+        client = ApifyClient(token)
+        runs = client.runs().list(status="RUNNING", limit=100).items or []
+        if not runs:
+            print("  ✓  no zombie actor runs found")
+            return
+        print(f"  Found {len(runs)} RUNNING actor runs — aborting…")
+        for r in runs:
+            rid = r.get("id") if isinstance(r, dict) else getattr(r, "id", None)
+            actor_name = (r.get("actId") if isinstance(r, dict) else getattr(r, "act_id", None)) or "?"
+            if not rid:
+                continue
+            try:
+                client.run(rid).abort()
+                print(f"    aborted {rid}  ({actor_name})")
+            except Exception as e:
+                print(f"    ⚠  failed to abort {rid}: {e}")
+    except Exception as e:
+        print(f"  ⚠  zombie-cleanup failed: {e}")
+
+
 def main():
     print("=" * 60)
     print("  HARI JOB PIPELINE — DAILY RUN")
     print("=" * 60)
+
+    # 0. Cleanup — abort any zombie actors holding Apify memory quota
+    print("\n[0/3]  Aborting any zombie Apify actor runs...")
+    kill_zombie_apify_runs()
 
     # 1. Search for new jobs
     print("\n[1/3]  Searching for new jobs...")
