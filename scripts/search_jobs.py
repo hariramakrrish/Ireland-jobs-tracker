@@ -215,12 +215,24 @@ def _s(val):
     return val if isinstance(val, str) else ""
 
 # ── Apify RAG browser (fallback for sites without dedicated actors) ────────────
+
+# ── Cross-version helper: apify-client 1.x returns a dict from .call(),
+# 2.x returns a Run object. Both expose the dataset ID; this helper grabs it.
+def _dataset_id(run):
+    if run is None:
+        return None
+    if hasattr(run, "default_dataset_id"):
+        return run.default_dataset_id
+    if isinstance(run, dict):
+        return run.get("defaultDatasetId")
+    return getattr(run, "defaultDatasetId", None)
+
 def rag_fetch(client, url, query="software engineer ireland", timeout=120):
     try:
         run   = client.actor("apify/rag-web-browser").call(
             run_input={"startUrls": [{"url": url}], "maxResults": 1, "query": query},
         )
-        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+        items = list(client.dataset(_dataset_id(run)).iterate_items())
         if not items:
             return ""
         return items[0].get("text", "") or items[0].get("markdown", "")
@@ -246,7 +258,7 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
                 "job_type":        "F",    # Full-time
             },
         )
-        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+        items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
         for item in items:
             title   = (_s(item.get("job_title")) or _s(item.get("title")) or "").strip()
@@ -282,7 +294,7 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
                 "datePosted": "14",  # last 14 days
             },
         )
-        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+        items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
         for item in items:
             title   = (_s(item.get("title")) or _s(item.get("positionName")) or "").strip()
@@ -317,7 +329,7 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
                 "limit":    max_results,
             },
         )
-        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+        items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
         for item in items:
             title   = (_s(item.get("jobTitle")) or _s(item.get("title")) or "").strip()
@@ -354,7 +366,7 @@ def search_irishjobs(client, query, max_results=RESULTS_PER_QUERY):
                 "maxResults": max_results,
             },
         )
-        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+        items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
         for item in items:
             title   = (_s(item.get("title")) or _s(item.get("jobTitle")) or "").strip()
