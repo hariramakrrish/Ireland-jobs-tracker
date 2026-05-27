@@ -125,20 +125,20 @@ RESULTS_PER_QUERY = 15
 
 # ── Company career pages (RAG browser fallback) ───────────────────────────────
 COMPANY_CAREER_PAGES = [
-    ("Microsoft",   "https://careers.microsoft.com/v2/global/en/locations/dublin.html",               "Full Stack / General SWE"),
-    ("Google",      "https://www.google.com/about/careers/applications/jobs/results?location=Dublin,+Ireland", "Full Stack / General SWE"),
+    ("Microsoft",   "https://careers.microsoft.com/v2/global/en/locations/dublin.html",               "Full Stack"),
+    ("Google",      "https://www.google.com/about/careers/applications/jobs/results?location=Dublin,+Ireland", "Full Stack"),
     ("Stripe",      "https://stripe.com/jobs/search?location=Dublin&teams=engineering",               "Java / Backend"),
-    ("Amazon",      "https://www.amazon.jobs/en/search?base_query=software+engineer&loc_query=Dublin%2C+Ireland", "Full Stack / General SWE"),
-    ("Workday",     "https://www.workday.com/en-us/company/careers/overview.html?q=software+engineer&location=Dublin", "Full Stack / General SWE"),
-    ("HubSpot",     "https://www.hubspot.com/careers/jobs?q=software+engineer&country=Ireland",       "Full Stack / General SWE"),
-    ("Salesforce",  "https://salesforce.wd12.myworkdayjobs.com/en-US/External_Career_Site?q=software+engineer&locationCountry=IE", "Full Stack / General SWE"),
-    ("MongoDB",     "https://www.mongodb.com/careers/search?department=Engineering&location=Dublin%2C+Ireland", "Full Stack / General SWE"),
-    ("Zendesk",     "https://jobs.zendesk.com/us/en/search-results?keywords=software+engineer&location=Dublin", "Full Stack / General SWE"),
-    ("Intercom",    "https://www.intercom.com/careers/jobs?search=engineer&location=Dublin",          "Full Stack / General SWE"),
-    ("Gong",        "https://www.gong.io/careers/#open-positions",                                    "Full Stack / General SWE"),
-    ("Arista",      "https://www.arista.com/en/careers",                                              "Full Stack / General SWE"),
-    ("Bentley",     "https://www.bentley.com/company/careers/?search=software+engineer&location=Dublin", "Full Stack / General SWE"),
-    ("Canonical",   "https://canonical.com/careers/all?location=Ireland",                             "Python / Data / ML"),
+    ("Amazon",      "https://www.amazon.jobs/en/search?base_query=software+engineer&loc_query=Dublin%2C+Ireland", "Full Stack"),
+    ("Workday",     "https://www.workday.com/en-us/company/careers/overview.html?q=software+engineer&location=Dublin", "Full Stack"),
+    ("HubSpot",     "https://www.hubspot.com/careers/jobs?q=software+engineer&country=Ireland",       "Full Stack"),
+    ("Salesforce",  "https://salesforce.wd12.myworkdayjobs.com/en-US/External_Career_Site?q=software+engineer&locationCountry=IE", "Full Stack"),
+    ("MongoDB",     "https://www.mongodb.com/careers/search?department=Engineering&location=Dublin%2C+Ireland", "Full Stack"),
+    ("Zendesk",     "https://jobs.zendesk.com/us/en/search-results?keywords=software+engineer&location=Dublin", "Full Stack"),
+    ("Intercom",    "https://www.intercom.com/careers/jobs?search=engineer&location=Dublin",          "Full Stack"),
+    ("Gong",        "https://www.gong.io/careers/#open-positions",                                    "Full Stack"),
+    ("Arista",      "https://www.arista.com/en/careers",                                              "Full Stack"),
+    ("Bentley",     "https://www.bentley.com/company/careers/?search=software+engineer&location=Dublin", "Full Stack"),
+    ("Canonical",   "https://canonical.com/careers/all?location=Ireland",                             "Python"),
     ("Etsy",        "https://careers.etsy.com/?country=IE",                                           "Java / Backend"),
     ("Fidelity",    "https://www.fidelityinternational.com/careers/",                                 "Java / Backend"),
 ]
@@ -219,7 +219,6 @@ def rag_fetch(client, url, query="software engineer ireland", timeout=120):
     try:
         run   = client.actor("apify/rag-web-browser").call(
             run_input={"startUrls": [{"url": url}], "maxResults": 1, "query": query},
-            timeout_secs=timeout,
         )
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         if not items:
@@ -246,7 +245,6 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
                 "job_post_time":   "r2592000",  # Last month
                 "job_type":        "F",    # Full-time
             },
-            timeout_secs=180,
         )
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         jobs  = []
@@ -283,7 +281,6 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
                 "limit":      max_results,
                 "datePosted": "14",  # last 14 days
             },
-            timeout_secs=180,
         )
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         jobs  = []
@@ -319,7 +316,6 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
                 "daysOld":  30,
                 "limit":    max_results,
             },
-            timeout_secs=180,
         )
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         jobs  = []
@@ -357,7 +353,6 @@ def search_irishjobs(client, query, max_results=RESULTS_PER_QUERY):
                 "location":   "Dublin",
                 "maxResults": max_results,
             },
-            timeout_secs=180,
         )
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         jobs  = []
