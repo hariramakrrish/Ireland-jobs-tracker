@@ -35,6 +35,17 @@ jobs:
           GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/run_pipeline.py
 
+      - name: Sync new jobs.json rows into Supabase
+        # The dashboard reads from Supabase via /api/jobs, NOT from git.
+        # Without this step, newly-scraped jobs land in jobs.json but stay
+        # invisible in the tracker until someone manually fires the
+        # migrate-to-supabase workflow. Upsert is idempotent on the id PK
+        # so re-running is safe.
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/migrate_to_supabase.py
+
       - name: Commit and push new resumes + updated data
         run: |
           git config user.name  "github-actions[bot]"
