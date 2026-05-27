@@ -20,55 +20,76 @@ APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
 ROOT        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JOBS_FILE   = os.path.join(ROOT, "web", "data", "jobs.json")
 
-# ── Role categories with junior/grad/entry-level queries ─────────────────────
+# ── Role categories — MUST EXACTLY MATCH the chip values in web/index.html
+# (Java / Backend, Python, Data Analyst, Data Scientist, AI / ML, IT Support,
+# Full Stack, Production Support). If you add a new bucket here, also add a
+# matching chip in the dashboard, otherwise those jobs won't appear under
+# any filter.
 SEARCHES = [
     ("Java / Backend", [
         "junior java developer",
         "graduate java engineer",
+        "graduate java software engineer ireland",
         "associate software engineer java",
         "entry level backend developer",
         "graduate spring boot developer",
         "junior backend engineer",
         "software engineer java",
         "junior kotlin developer",
+        "graduate backend engineer dublin",
     ]),
-    ("Python / Data / ML", [
+    ("Python", [
         "junior python developer",
         "graduate python engineer",
+        "graduate python developer ireland",
         "entry level python developer",
         "junior data engineer",
-        "graduate machine learning engineer",
-        "junior AI engineer",
-        "associate data scientist",
+        "graduate data engineer",
         "software engineer python",
+        "graduate backend python ireland",
     ]),
     ("Data Analyst", [
         "junior data analyst",
         "graduate data analyst",
+        "graduate data analyst ireland",
         "entry level data analyst",
         "associate business analyst",
         "graduate business intelligence analyst",
         "junior SQL analyst",
-        "data analyst graduate",
+        "data analyst graduate dublin",
+        "graduate business analyst data",
+    ]),
+    ("Data Scientist", [
+        "graduate data scientist",
+        "junior data scientist",
+        "associate data scientist",
+        "graduate data scientist ireland",
+        "entry level data scientist",
+        "data science graduate programme",
     ]),
     ("AI / ML", [
         "junior machine learning engineer",
         "graduate AI engineer",
+        "graduate machine learning engineer",
         "entry level ML engineer",
         "associate machine learning engineer",
         "junior NLP engineer",
         "AI software engineer entry level",
         "graduate deep learning engineer",
+        "graduate AI engineer ireland",
     ]),
-    ("Full Stack / General SWE", [
+    ("Full Stack", [
         "junior full stack developer",
         "graduate software engineer",
+        "graduate software engineer ireland",
         "entry level software engineer",
         "associate software engineer",
         "junior react developer",
         "junior node.js developer",
         "software engineer new grad",
         "junior web developer",
+        "graduate fullstack developer dublin",
+        "graduate programme software engineer",
     ]),
     ("IT Support", [
         "junior IT support engineer",
@@ -78,6 +99,7 @@ SEARCHES = [
         "junior helpdesk engineer",
         "IT support analyst",
         "junior systems administrator",
+        "graduate IT support ireland",
     ]),
     ("Production Support", [
         "junior production support engineer",
@@ -86,21 +108,20 @@ SEARCHES = [
         "graduate site reliability engineer",
         "associate DevOps engineer",
         "junior cloud engineer",
+        "graduate cloud engineer",
         "junior platform engineer",
-    ]),
-    ("Cloud / Infrastructure", [
-        "junior cloud engineer",
         "graduate AWS engineer",
-        "associate cloud developer",
         "junior Azure engineer",
-        "entry level infrastructure engineer",
         "junior kubernetes engineer",
         "cloud support engineer",
+        "graduate SRE ireland",
     ]),
 ]
 
-# Maximum results per query per source
-RESULTS_PER_QUERY = 10
+# Maximum results per query per source. Bumped 10 → 15 to surface more
+# graduate / entry-level postings per run (more candidate pool given Hari's
+# 0.4% conversion rate so far).
+RESULTS_PER_QUERY = 15
 
 # ── Company career pages (RAG browser fallback) ───────────────────────────────
 COMPANY_CAREER_PAGES = [
