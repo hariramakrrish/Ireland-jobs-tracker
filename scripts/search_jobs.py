@@ -469,9 +469,40 @@ def save_jobs(jobs):
     with open(JOBS_FILE, "w") as f:
         json.dump(jobs, f, indent=2)
 
+# ── Strict title-driven category classifier ─────────────────────────────────
+# The search-query bucket that surfaced a job is a WEAK signal — a
+# "junior python developer" search returns plenty of generic "Software
+# Engineer" titles that aren't actually Python. So before we trust the
+# search-bucket category, run the title through a strict title-based
+# classifier and let it override when it has a strong signal.
+#
+# Order matters: most specific rules first; first match wins.
+_STRICT_CATEGORY_RULES = [
+    (re.compile(r"(?i)\b(machine learning|\bml\b engineer|\bai\b engineer|deep learning|\bnlp\b|computer vision|\bllm\b|gen[- ]?ai|generative ai|ai agents|mlops|ai/ml|ai engineer|ml ops|ai software)\b"), "AI / ML"),
+    (re.compile(r"(?i)\bdata scientists?\b|biostatistician|statistical programmer|\bdata science\b"), "Data Scientist"),
+    (re.compile(r"(?i)\b(data analyst|bi analyst|business intelligence|reporting analyst|analytics analyst)\b"), "Data Analyst"),
+    (re.compile(r"(?i)\b(helpdesk|help desk|service desk|desktop support|ict support|technical support|it support|l1 support|l2 support|level 1 support|level 2 support|systems? admin)\b"), "IT Support"),
+    (re.compile(r"(?i)\b(devops|\bsre\b|site reliability|cloud engineer|platform engineer|aws engineer|azure engineer|kubernetes|infrastructure engineer|terraform|application support|production support|reliability engineer|cloud operations|cloud platform|cloud architect|cloud developer|cloud security|cybersecurity|cyber security|security engineer|qa engineer|test automation)\b"), "Production Support"),
+    (re.compile(r"(?i)\b(react|vue|angular|frontend|front[- ]end|\bui\b engineer|\bui\b developer|full[- ]?stack|fullstack|mobile (engineer|developer)|\bios\b engineer|android (engineer|developer)|web developer|wordpress)\b"), "Full Stack"),
+    (re.compile(r"(?i)\b(java\b|spring boot|jvm|scala (engineer|developer)|kotlin (engineer|developer)|backend (engineer|developer|software)|back[- ]end (engineer|developer))\b"), "Java / Backend"),
+    (re.compile(r"(?i)\b(python|django|flask|fastapi|pyspark|airflow developer)\b"), "Python"),
+    (re.compile(r"(?i)\bdata engineer\b"), "Python"),
+    (re.compile(r"(?i)\b(software engineer|software developer|sr software|associate software|junior software|graduate software|software internship)\b"), "Full Stack"),
+]
+
+def strict_category(title: str, fallback: str) -> str:
+    """Return the strict title-driven category, or fallback if no rule matches."""
+    for pat, cat in _STRICT_CATEGORY_RULES:
+        if pat.search(title or ""):
+            return cat
+    return fallback
+
 def make_entry(r, category, next_num):
     title   = r["title"]
     company = r["company"]
+    # Override the search-bucket category with strict title classification.
+    # Falls back to the search-bucket category only when no rule matches.
+    category = strict_category(title, fallback=category)
     source  = r.get("source", "LinkedIn")
     loc     = r.get("location", "Ireland")
     url     = r.get("url", "")
