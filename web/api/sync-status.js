@@ -39,6 +39,34 @@ module.exports = async function handler(req, res) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // ── Mass-overwrite guard ──────────────────────────────────────────────
+  // On 2026-05-31 a buggy migrate script blindly overwrote 41 Applied
+  // statuses to 'Not Applied'. This guard catches the same failure mode
+  // if it ever recurs via this endpoint: if more than 5 rows have been
+  // set to 'Not Applied' in the last 60 seconds, refuse further such
+  // writes until things settle. Manual user clicks rarely reset to
+  // 'Not Applied' so this almost never triggers on legitimate use.
+  if (status === 'Not Applied') {
+    try {
+      const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString();
+      const { count, error: countErr } = await supabase
+        .from('jobs')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'Not Applied')
+        .gte('updated_at', sixtySecondsAgo);
+      if (!countErr && typeof count === 'number' && count >= 5) {
+        console.warn(`Mass-NA-overwrite guard tripped: ${count} jobs set to Not Applied in last 60s; refusing ${jobId}`);
+        return res.status(429).json({
+          error: 'Mass-overwrite guard: more than 5 rows set to Not Applied in the last 60 seconds. Refusing to prevent accidental data loss. Wait a minute and retry, or inspect what is hitting this endpoint.',
+          recentNotAppliedCount: count,
+        });
+      }
+    } catch (e) {
+      // Guard check failure must NOT block legitimate writes — log and proceed.
+      console.warn('Mass-NA-overwrite guard check failed; allowing write:', e.message);
+    }
+  }
+
   try {
     const { data, error } = await supabase
       .from('jobs')
