@@ -1219,7 +1219,7 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
         '+353 89 970 6156  &nbsp;•&nbsp;  hariramakrrish@gmail.com  &nbsp;•&nbsp;  '
         'Dublin, Ireland  &nbsp;•&nbsp;  <b>Stamp 1G — Full-Time Work Eligible</b>', contact_s))
 
-    story += section_header("Professional Experience")
+    story += section_header("Professional Experience  —  3.5 Years")
     story.append(role_header("Software Engineer  —  HCL Technologies, Chennai, India", "Sep 2021 – Jan 2025"))
     story.append(Spacer(1, 3))
     for b in exp_bullets:

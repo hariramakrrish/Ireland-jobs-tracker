@@ -149,6 +149,16 @@
     <span class="chip" data-status="Rejected">Rejected</span>
     <span class="chip" data-status="No Longer Available">No Longer Available</span>
   </div>
+  <div class="action-buttons" style="display:flex; gap:10px; margin-left:auto;">
+    <button id="btn-add-jd" title="Paste a JD to add a new job + tailored resume"
+      style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:8px; padding:8px 14px; font-weight:700; cursor:pointer; font-size:14px;">
+      ✨ Add JD
+    </button>
+    <button id="btn-clear-nla" title="Permanently delete all No Longer Available jobs"
+      style="background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; border-radius:8px; padding:8px 14px; font-weight:700; cursor:pointer; font-size:14px;">
+      🗑️ Clear No Longer Available
+    </button>
+  </div>
 </div>
 
 <div class="last-updated" id="last-updated"></div>
@@ -203,6 +213,56 @@
     <footer>
       <button class="btn-cancel" id="regen-cancel">Cancel</button>
       <button class="btn-go" id="regen-submit">Regenerate</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ✨ Add-JD modal — paste a JD to add a new job + queue a tailored resume -->
+<div id="addjd-overlay" role="dialog" aria-modal="true"
+  style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+  <div id="addjd-modal"
+    style="background:#fff; border-radius:12px; max-width:720px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.4); display:flex; flex-direction:column;">
+    <header style="padding:18px 22px; border-bottom:1px solid #e5e7eb;">
+      <h2 style="margin:0; font-size:18px; color:#1f2937;">✨ Add a job from JD</h2>
+      <div style="font-size:13px; color:#6b7280; margin-top:4px;">Paste the JD; a tailored resume will be queued automatically.</div>
+    </header>
+    <div style="padding:18px 22px; flex:1;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:#374151; margin-bottom:4px;">Company *</label>
+          <input id="addjd-company" type="text" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;" placeholder="e.g. Stripe"/>
+        </div>
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:#374151; margin-bottom:4px;">Job title *</label>
+          <input id="addjd-title" type="text" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;" placeholder="e.g. Backend Engineer"/>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:#374151; margin-bottom:4px;">Category</label>
+          <select id="addjd-category" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;">
+            <option>Full Stack</option>
+            <option>Java / Backend</option>
+            <option>Python</option>
+            <option>Data Analyst</option>
+            <option>Data Scientist</option>
+            <option>AI / ML</option>
+            <option>IT Support</option>
+            <option>Production Support</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block; font-size:13px; font-weight:600; color:#374151; margin-bottom:4px;">Apply URL (optional)</label>
+          <input id="addjd-url" type="url" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;" placeholder="https://…"/>
+        </div>
+      </div>
+      <label style="display:block; font-size:13px; font-weight:600; color:#374151; margin-bottom:4px;">Job description *</label>
+      <textarea id="addjd-jd" style="width:100%; min-height:220px; padding:10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; font-family:inherit;" placeholder="Paste the full JD here for accurate resume tailoring…"></textarea>
+      <div id="addjd-status" style="margin-top:10px; font-size:13px;"></div>
+    </div>
+    <footer style="padding:14px 22px; border-top:1px solid #e5e7eb; display:flex; justify-content:flex-end; gap:10px;">
+      <button id="addjd-cancel" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer;">Cancel</button>
+      <button id="addjd-submit" style="background:#0070c0; color:#fff; border:none; border-radius:6px; padding:8px 18px; font-weight:600; cursor:pointer;">Add &amp; Queue Resume</button>
     </footer>
   </div>
 </div>
@@ -637,6 +697,86 @@ document.getElementById('regen-overlay').addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && document.getElementById('regen-overlay').classList.contains('show')) closeRegen();
+});
+
+// ── ✨ Add-JD modal ──────────────────────────────────────────────────────
+function openAddJd() {
+  document.getElementById('addjd-company').value  = '';
+  document.getElementById('addjd-title').value    = '';
+  document.getElementById('addjd-url').value      = '';
+  document.getElementById('addjd-jd').value       = '';
+  document.getElementById('addjd-status').textContent = '';
+  document.getElementById('addjd-submit').disabled = false;
+  document.getElementById('addjd-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('addjd-company').focus(), 50);
+}
+function closeAddJd() {
+  document.getElementById('addjd-overlay').style.display = 'none';
+}
+document.getElementById('btn-add-jd').addEventListener('click', openAddJd);
+document.getElementById('addjd-cancel').addEventListener('click', closeAddJd);
+document.getElementById('addjd-overlay').addEventListener('click', e => {
+  if (e.target.id === 'addjd-overlay') closeAddJd();
+});
+
+document.getElementById('addjd-submit').addEventListener('click', async () => {
+  const company  = document.getElementById('addjd-company').value.trim();
+  const title    = document.getElementById('addjd-title').value.trim();
+  const category = document.getElementById('addjd-category').value;
+  const apply_url= document.getElementById('addjd-url').value.trim();
+  const jd       = document.getElementById('addjd-jd').value.trim();
+  const status   = document.getElementById('addjd-status');
+  if (!company || !title || !jd) {
+    status.style.color = '#b91c1c';
+    status.textContent = 'Company, Title and JD are all required.';
+    return;
+  }
+  const btn = document.getElementById('addjd-submit');
+  btn.disabled = true;
+  status.style.color = '#1f2937';
+  status.textContent = 'Adding job and queueing resume generation…';
+  try {
+    const r = await fetch('/api/add-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company, title, jd, category, apply_url, location: 'Ireland' }),
+    });
+    const out = await r.json();
+    if (!r.ok) throw new Error(out.error || `HTTP ${r.status}`);
+    status.style.color = '#15803d';
+    status.textContent = out.alreadyExisted
+      ? `✓ Job already existed (id ${out.jobId}). Resume regen queued.`
+      : `✓ Job added (id ${out.jobId}). Tailored resume will appear in ~1 minute.`;
+    showToast('✨ Job added — resume queued', 'ok', 4000);
+    // Refresh the table after a delay so the new row appears
+    setTimeout(() => { loadJobs(); }, 3000);
+    setTimeout(() => { closeAddJd(); }, 2500);
+  } catch (e) {
+    status.style.color = '#b91c1c';
+    status.textContent = '✗ ' + (e.message || 'Failed');
+    btn.disabled = false;
+  }
+});
+
+// ── 🗑️ Clear-NLA button ─────────────────────────────────────────────────
+document.getElementById('btn-clear-nla').addEventListener('click', async () => {
+  const ok = confirm('Permanently delete every job marked "No Longer Available"?\n\nThis cannot be undone here, but the daily snapshot in git preserves yesterday\'s data if you need to restore.');
+  if (!ok) return;
+  const btn = document.getElementById('btn-clear-nla');
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+  try {
+    const r = await fetch('/api/bulk-delete-nla', { method: 'POST' });
+    const out = await r.json();
+    if (!r.ok) throw new Error(out.error || `HTTP ${r.status}`);
+    showToast(`🗑️ Deleted ${out.deletedCount} No-Longer-Available rows`, 'ok', 4000);
+    setTimeout(() => loadJobs(), 1000);
+  } catch (e) {
+    showToast('Delete failed: ' + (e.message || e), 'err', 5000);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🗑️ Clear No Longer Available';
+  }
 });
 
 document.getElementById('regen-submit').addEventListener('click', async () => {
