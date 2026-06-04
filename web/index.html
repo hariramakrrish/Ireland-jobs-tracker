@@ -483,10 +483,18 @@ async function changeStatus(id, sel) {
   sel.className = `status-sel status-${stc}`;
   sel.closest("tr").dataset.status = val;
 
+  // Keep the in-memory ALL_JOBS in sync so stat counts + filters
+  // immediately reflect the new state. Without this, renderStats() and
+  // applyFilters() use stale ALL_JOBS values and the chip-filtered view
+  // keeps showing rows whose status has just changed.
+  const idx = ALL_JOBS.findIndex(j => j.id === id);
+  if (idx >= 0) ALL_JOBS[idx].status = val;
+
   // Save locally immediately — UI stays snappy no matter what
   pending[id] = val;
   localStorage.setItem("pending_statuses", JSON.stringify(pending));
   renderStats(ALL_JOBS);
+  applyFilters();   // re-evaluate visibility under the active status chip
   updatePendingBadge();
 
   // Attempt GitHub sync — show feedback either way
