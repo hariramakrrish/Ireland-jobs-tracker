@@ -553,13 +553,22 @@ function writeState(state) {
   try { localStorage.setItem(FILTER_KEY, JSON.stringify(state)); } catch(e) {}
 }
 
+// Status chips are MULTI-SELECT toggles: click to add/remove a status from
+// the active set (e.g. view Applied + Interviewing together while cross-
+// checking Gmail updates). "All Status" clears the multi-selection.
+function activeStatuses() {
+  return Array.from(document.querySelectorAll('.chip.active[data-status]'))
+    .map(c => c.dataset.status)
+    .filter(s => s !== 'all');
+}
+
 function persistFilters() {
   const q      = document.getElementById("search").value;
   const catEl  = document.querySelector("#cat-filters .chip.active[data-cat]");
-  const stEl   = document.querySelector(".chip.active[data-status]");
+  const sts    = activeStatuses();
   writeState({
     cat:    catEl ? catEl.dataset.cat   : "all",
-    status: stEl  ? stEl.dataset.status : "all",
+    status: sts.length ? sts.join("|") : "all",   // multi-status joined by |
     q:      q || ""
   });
 }
@@ -571,9 +580,15 @@ function restoreFilters() {
   document.querySelectorAll(".chip[data-cat]").forEach(c => {
     c.classList.toggle("active", c.dataset.cat === (saved.cat || "all"));
   });
-  // restore status chip
+  // restore status chips (multi-select: saved.status is 'all' or 'A|B|C')
+  const savedSts = (saved.status && saved.status !== "all")
+    ? saved.status.split("|") : [];
   document.querySelectorAll(".chip[data-status]").forEach(c => {
-    c.classList.toggle("active", c.dataset.status === (saved.status || "all"));
+    if (c.dataset.status === "all") {
+      c.classList.toggle("active", savedSts.length === 0);
+    } else {
+      c.classList.toggle("active", savedSts.includes(c.dataset.status));
+    }
   });
   // restore search box
   const s = document.getElementById("search");
@@ -583,20 +598,19 @@ function restoreFilters() {
 function applyFilters() {
   const q      = document.getElementById("search").value.toLowerCase();
   const catEl  = document.querySelector("#cat-filters .chip.active[data-cat]");
-  const stEl   = document.querySelector(".chip.active[data-status]");
   const catF   = catEl  ? catEl.dataset.cat  : "all";
-  const stF    = stEl   ? stEl.dataset.status: "all";
+  const sts    = activeStatuses();               // [] means "all"
   const rows   = document.querySelectorAll("#jobs-body tr[data-id]");
   rows.forEach(r => {
     const matchCat = catF==="all" || r.dataset.cat===catF;
-    const matchSt  = stF==="all"  || r.dataset.status===stF;
+    const matchSt  = sts.length===0 || sts.includes(r.dataset.status);
     const matchQ   = !q || r.textContent.toLowerCase().includes(q);
     r.style.display = (matchCat && matchSt && matchQ) ? "" : "none";
   });
   persistFilters();
 }
 
-// Chips
+// Chips — category stays single-select; status is multi-select toggle.
 document.querySelectorAll(".chip[data-cat]").forEach(c => {
   c.addEventListener("click", () => {
     document.querySelectorAll(".chip[data-cat]").forEach(x=>x.classList.remove("active"));
@@ -606,8 +620,18 @@ document.querySelectorAll(".chip[data-cat]").forEach(c => {
 });
 document.querySelectorAll(".chip[data-status]").forEach(c => {
   c.addEventListener("click", () => {
-    document.querySelectorAll(".chip[data-status]").forEach(x=>x.classList.remove("active"));
-    c.classList.add("active");
+    const allChip = document.querySelector('.chip[data-status="all"]');
+    if (c.dataset.status === "all") {
+      // "All Status" resets the multi-selection
+      document.querySelectorAll(".chip[data-status]").forEach(x=>x.classList.remove("active"));
+      c.classList.add("active");
+    } else {
+      // Toggle this status on/off
+      c.classList.toggle("active");
+      const anySelected = activeStatuses().length > 0;
+      // "All Status" chip lights only when nothing specific is selected
+      allChip.classList.toggle("active", !anySelected);
+    }
     applyFilters();
   });
 });
