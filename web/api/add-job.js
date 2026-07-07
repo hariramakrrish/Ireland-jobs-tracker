@@ -54,9 +54,8 @@ module.exports = async function handler(req, res) {
   if (!supabaseUrl || !serviceKey) {
     return res.status(500).json({ error: 'Server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set' });
   }
-  if (!ghToken) {
-    return res.status(500).json({ error: 'Server misconfigured: GITHUB_TOKEN not set (needed to trigger regen workflow)' });
-  }
+  // NOTE: GITHUB_TOKEN is optional. If it's missing/expired the job still
+  // gets saved to Supabase; only the automatic resume-regen is skipped.
 
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -105,29 +104,42 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // Trigger the existing single-resume regen workflow with this JD.
-  try {
-    const ghRes = await fetch('https://api.github.com/repos/hariramakrrish/Ireland-jobs-tracker/dispatches', {
-      method: 'POST',
-      headers: {
-        'Accept':        'application/vnd.github+json',
-        'Authorization': `Bearer ${ghToken}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        event_type: 'regen-resume',
-        client_payload: { jobId: id, jd: jd || '' },
-      }),
-    });
-    if (!ghRes.ok) {
-      const txt = await ghRes.text();
-      console.error('GH dispatch failed:', ghRes.status, txt);
-      return res.status(502).json({ error: `GitHub dispatch failed: HTTP ${ghRes.status}`, detail: txt });
+  // Best-effort: trigger the single-resume regen workflow with this JD.
+  // IMPORTANT: the job row is ALREADY saved in Supabase above, so even if
+  // the GitHub token is expired/invalid, the job still appears in the
+  // tracker. We never fail the whole request just because the resume
+  // couldn't be auto-queued — that was the old bug where a stale
+  // GITHUB_TOKEN made "Add JD" return 502 and appear completely broken.
+  let resumeQueued = false;
+  let resumeError  = null;
+  if (ghToken) {
+    try {
+      const ghRes = await fetch('https://api.github.com/repos/hariramakrrish/Ireland-jobs-tracker/dispatches', {
+        method: 'POST',
+        headers: {
+          'Accept':        'application/vnd.github+json',
+          'Authorization': `Bearer ${ghToken}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({
+          event_type: 'regen-resume',
+          client_payload: { jobId: id, jd: jd || '' },
+        }),
+      });
+      if (ghRes.ok) {
+        resumeQueued = true;
+      } else {
+        resumeError = `GitHub dispatch HTTP ${ghRes.status}`;
+        console.error('GH dispatch failed (job still saved):', ghRes.status, await ghRes.text());
+      }
+    } catch (e) {
+      resumeError = 'GitHub dispatch network error: ' + e.message;
+      console.error(resumeError);
     }
-  } catch (e) {
-    return res.status(502).json({ error: 'GitHub dispatch network error: ' + e.message });
+  } else {
+    resumeError = 'GITHUB_TOKEN not set — resume not auto-queued';
   }
 
-  return res.status(200).json({ success: true, jobId: id, alreadyExisted });
+  return res.status(200).json({ success: true, jobId: id, alreadyExisted, resumeQueued, resumeError });
 };

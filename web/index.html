@@ -72,6 +72,18 @@
   .status-interviewing{ background: #fef9c3; color: #a16207; border-color: #fde047; }
   .status-rejected           { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
   .status-no-longer-available{ background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
+  .status-selected   { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; font-weight: 700; }
+
+  /* Row-select checkbox + bulk action bar */
+  .rowchk { width: 16px; height: 16px; cursor: pointer; }
+  #bulk-bar { display: none; align-items: center; gap: 12px; padding: 10px 32px;
+    background: #eef2ff; border-bottom: 1px solid #c7d2fe; font-size: 14px; }
+  #bulk-bar.show { display: flex; }
+  #bulk-bar .count { font-weight: 700; color: #3730a3; }
+  #bulk-bar select { padding: 6px 10px; border:1px solid #c7d2fe; border-radius:6px; font-size:14px; }
+  #bulk-bar button { padding: 6px 14px; border-radius:6px; font-weight:600; cursor:pointer; border:none; }
+  #bulk-apply { background:#4f46e5; color:#fff; }
+  #bulk-clear { background:#fff; color:#4338ca; border:1px solid #c7d2fe; }
 
   /* Action buttons */
   .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 6px; font-size: .8rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
@@ -146,6 +158,7 @@
     <span class="chip" data-status="Not Applied">Not Applied</span>
     <span class="chip" data-status="Applied">Applied</span>
     <span class="chip" data-status="Interviewing">Interviewing</span>
+    <span class="chip" data-status="Selected">Selected</span>
     <span class="chip" data-status="Rejected">Rejected</span>
     <span class="chip" data-status="No Longer Available">No Longer Available</span>
   </div>
@@ -164,9 +177,27 @@
 <div class="last-updated" id="last-updated"></div>
 
 <div class="table-wrap">
+  <div id="bulk-bar">
+    <input type="checkbox" id="bulk-select-all" class="rowchk" title="Select all visible rows"/>
+    <span class="count"><span id="bulk-count">0</span> selected</span>
+    <label>Set status to:
+      <select id="bulk-status">
+        <option value="No Longer Available">No Longer Available</option>
+        <option value="Not Applied">Not Applied</option>
+        <option value="Applied">Applied</option>
+        <option value="Interviewing">Interviewing</option>
+        <option value="Selected">Selected</option>
+        <option value="Rejected">Rejected</option>
+      </select>
+    </label>
+    <button id="bulk-apply">Apply to selected</button>
+    <button id="bulk-clear">Clear selection</button>
+  </div>
+
   <table id="jobs-table">
     <thead>
       <tr>
+        <th style="width:34px;"><input type="checkbox" id="head-select-all" class="rowchk" title="Select all visible rows"/></th>
         <th>#</th>
         <th>Company</th>
         <th>Job Title</th>
@@ -179,7 +210,7 @@
       </tr>
     </thead>
     <tbody id="jobs-body">
-      <tr><td colspan="9" class="empty">Loading jobs…</td></tr>
+      <tr><td colspan="10" class="empty">Loading jobs…</td></tr>
     </tbody>
   </table>
 </div>
@@ -417,7 +448,7 @@ const CAT_COLORS = {
   "Full Stack":          { bg:"#e0f2fe", fg:"#0369a1" },
   "Production Support":  { bg:"#fff7ed", fg:"#c2410c" },
 };
-const STATUS_OPTS = ["Not Applied","Applied","Interviewing","Rejected","No Longer Available"];
+const STATUS_OPTS = ["Not Applied","Applied","Interviewing","Selected","Rejected","No Longer Available"];
 
 let ALL_JOBS = [];
 
@@ -449,7 +480,7 @@ function renderStats(jobs) {
 
 function renderTable(jobs) {
   const tbody = document.getElementById("jobs-body");
-  if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No jobs match your filters.</td></tr>'; return; }
+  if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty">No jobs match your filters.</td></tr>'; return; }
   const cat = c => { const x = CAT_COLORS[c]||{bg:"#f1f5f9",fg:"#374151"}; return `background:${x.bg};color:${x.fg}`; };
   tbody.innerHTML = jobs.map((j,i) => {
     const st  = getStatus(j);
@@ -459,6 +490,7 @@ function renderTable(jobs) {
       ? `<span class="src src-indeed">Indeed</span>`
       : `<span class="src src-linkedin">LinkedIn</span>`;
     return `<tr data-id="${j.id}" data-cat="${j.category}" data-status="${st}">
+      <td><input type="checkbox" class="rowchk row-select" data-id="${j.id}" onchange="onRowCheck()"/></td>
       <td class="num">${j.num}</td>
       <td class="company">${j.company}</td>
       <td class="title">${j.title}</td>
@@ -509,6 +541,74 @@ async function changeStatus(id, sel) {
     updatePendingBadge();
   }
 }
+
+// ── Bulk row selection ───────────────────────────────────────────────────
+// Tick multiple rows, then set them all to one status in a single action.
+// Primary use: sweep several irrelevant jobs and mark them Not Applicable
+// (No Longer Available) at once, instead of one dropdown at a time.
+function selectedRowIds() {
+  return Array.from(document.querySelectorAll('.row-select:checked')).map(c => c.dataset.id);
+}
+function onRowCheck() {
+  const n = selectedRowIds().length;
+  document.getElementById('bulk-count').textContent = n;
+  document.getElementById('bulk-bar').classList.toggle('show', n > 0);
+}
+function clearRowSelection() {
+  document.querySelectorAll('.row-select:checked').forEach(c => c.checked = false);
+  const head = document.getElementById('head-select-all');
+  const bulk = document.getElementById('bulk-select-all');
+  if (head) head.checked = false;
+  if (bulk) bulk.checked = false;
+  onRowCheck();
+}
+function selectAllVisible(check) {
+  document.querySelectorAll('#jobs-body tr[data-id]').forEach(tr => {
+    if (tr.style.display === 'none') return;           // only visible (filtered) rows
+    const cb = tr.querySelector('.row-select');
+    if (cb) cb.checked = check;
+  });
+  onRowCheck();
+}
+async function applyBulkStatus() {
+  const ids = selectedRowIds();
+  if (!ids.length) return;
+  const val = document.getElementById('bulk-status').value;
+  const btn = document.getElementById('bulk-apply');
+  btn.disabled = true; btn.textContent = `Updating ${ids.length}…`;
+  let ok = 0, fail = 0;
+  for (const id of ids) {
+    // update UI + memory immediately
+    const idx = ALL_JOBS.findIndex(j => j.id === id);
+    if (idx >= 0) ALL_JOBS[idx].status = val;
+    const row = document.querySelector(`#jobs-body tr[data-id="${id}"]`);
+    if (row) {
+      row.dataset.status = val;
+      const sel = row.querySelector('.status-sel');
+      if (sel) { sel.value = val; sel.className = `status-sel status-${val.toLowerCase().replace(/\s+/g,'-')}`; }
+    }
+    const synced = await syncStatusToGitHub(id, val);
+    if (synced) { ok++; delete pending[id]; }
+    else { fail++; pending[id] = val; }
+  }
+  localStorage.setItem("pending_statuses", JSON.stringify(pending));
+  renderStats(ALL_JOBS);
+  applyFilters();
+  updatePendingBadge();
+  clearRowSelection();
+  btn.disabled = false; btn.textContent = 'Apply to selected';
+  showToast(`✓ ${ok} updated to "${val}"` + (fail ? ` · ${fail} failed` : ''), fail ? 'err' : 'ok', 4000);
+}
+document.getElementById('bulk-apply').addEventListener('click', applyBulkStatus);
+document.getElementById('bulk-clear').addEventListener('click', clearRowSelection);
+document.getElementById('head-select-all').addEventListener('change', e => {
+  selectAllVisible(e.target.checked);
+  document.getElementById('bulk-select-all').checked = e.target.checked;
+});
+document.getElementById('bulk-select-all').addEventListener('change', e => {
+  selectAllVisible(e.target.checked);
+  document.getElementById('head-select-all').checked = e.target.checked;
+});
 
 // Filter state lives in the URL hash (e.g. #cat=Java&status=Not+Applied&q=python)
 // AND mirrors to localStorage as a backup. URL hash is the source of truth
@@ -690,7 +790,7 @@ function loadJobs() {
     })
     .catch(() => {
       document.getElementById("jobs-body").innerHTML =
-        '<tr><td colspan="9" class="empty">Could not load jobs.json</td></tr>';
+        '<tr><td colspan="10" class="empty">Could not load jobs.json</td></tr>';
     });
 }
 loadJobs();
@@ -776,12 +876,15 @@ document.getElementById('addjd-submit').addEventListener('click', async () => {
     const out = await r.json();
     if (!r.ok) throw new Error(out.error || `HTTP ${r.status}`);
     status.style.color = '#15803d';
-    status.textContent = out.alreadyExisted
-      ? `✓ Job already existed (id ${out.jobId}). Resume regen queued.`
-      : `✓ Job added (id ${out.jobId}). Tailored resume will appear in ~1 minute.`;
-    showToast('✨ Job added — resume queued', 'ok', 4000);
+    const base = out.alreadyExisted
+      ? `✓ Job already existed (id ${out.jobId}).`
+      : `✓ Job added (id ${out.jobId}).`;
+    status.textContent = out.resumeQueued
+      ? `${base} Tailored resume will appear in ~1 minute.`
+      : `${base} Resume auto-gen skipped (${out.resumeError || 'no token'}) — add it later via the ✱ button.`;
+    showToast('✨ Job added to tracker', 'ok', 4000);
     // Refresh the table after a delay so the new row appears
-    setTimeout(() => { loadJobs(); }, 3000);
+    setTimeout(() => { loadJobs(); }, 2500);
     setTimeout(() => { closeAddJd(); }, 2500);
   } catch (e) {
     status.style.color = '#b91c1c';
