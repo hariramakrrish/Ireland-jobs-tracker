@@ -40,6 +40,9 @@ module.exports = async function handler(req, res) {
       const { data, error } = await supabase
         .from('jobs')
         .select('*')
+        .neq('status', 'Deleted')   // soft-deleted rows stay in the table (so the
+                                    // INSERT-only daily sync never resurrects them)
+                                    // but are hidden from the dashboard
         .order('num', { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) {

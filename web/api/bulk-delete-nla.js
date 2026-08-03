@@ -1,15 +1,21 @@
 /**
  * POST /api/bulk-delete-nla
  *
- * Permanently removes every row in the Supabase 'jobs' table whose status
- * is "No Longer Available". Used by the dashboard's red "Clear NLA" button
- * to declutter the tracker after the user has decided those roles aren't
- * relevant.
+ * SOFT-deletes every row in the Supabase 'jobs' table whose status is
+ * "No Longer Available" by setting status = 'Deleted'. Used by the
+ * dashboard's red "Clear NLA" button to declutter the tracker.
  *
- * Recovery path: the daily snapshot workflow stores a full dump of every
- * row in web/data/jobs-snapshot-YYYY-MM-DD.json (committed to git). If
- * something is deleted by mistake, restore from the previous day's
- * snapshot.
+ * Why soft delete: rows hard-deleted from Supabase get RESURRECTED by the
+ * daily migrate_to_supabase.py sync — their IDs still exist in jobs.json,
+ * so the INSERT-only sync sees them as "new" and re-inserts them as
+ * "Not Applied" (bug observed 2026-08-03: 184 cleared rows came back).
+ * Keeping the row with status 'Deleted' means it stays in existing_ids
+ * and is never re-inserted. /api/jobs filters 'Deleted' rows out, so the
+ * dashboard never shows them.
+ *
+ * Recovery path: rows are still in the table (status 'Deleted') and in the
+ * daily snapshots web/data/jobs-snapshot-YYYY-MM-DD.json. Restore by
+ * setting status back via /api/sync-status.
  *
  * Returns: { success, deletedCount }
  */
@@ -43,13 +49,14 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, deletedCount: 0, message: 'Nothing to delete.' });
     }
 
-    // Delete
+    // Soft delete: keep the rows so the INSERT-only daily sync never
+    // re-inserts them; /api/jobs hides status 'Deleted' from the dashboard.
     const { error } = await supabase
       .from('jobs')
-      .delete()
+      .update({ status: 'Deleted' })
       .eq('status', 'No Longer Available');
     if (error) {
-      console.error('Delete error:', error);
+      console.error('Soft-delete error:', error);
       return res.status(500).json({ error: error.message });
     }
     return res.status(200).json({ success: true, deletedCount: count });
