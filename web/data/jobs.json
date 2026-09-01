@@ -30372,5 +30372,19 @@
     "resume": "hari_enva_industrial_services_operative_driver.pdf",
     "status": "Not Applied",
     "added": "2026-08-11"
+  },
+  {
+    "id": "e5ef614d4f",
+    "num": 2021,
+    "category": "Java / Backend",
+    "company": "Cisco -1",
+    "title": "Software Engineer (Webex Engineering)",
+    "location": "Dublin, Ireland",
+    "source": "Manual (Add JD)",
+    "posted": "Sep 2026",
+    "apply_url": "",
+    "resume": "hari_cisco_1_software_engineer_webex_engineering.pdf",
+    "status": "Not Applied",
+    "added": "2026-09-01"
   }
 ]
