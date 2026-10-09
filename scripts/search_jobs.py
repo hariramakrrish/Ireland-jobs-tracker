@@ -6,14 +6,15 @@ Sources:
   1. LinkedIn   — worldunboxer/rapid-linkedin-scraper (FREE, structured JSON)
   2. Indeed IE  — valig/indeed-jobs-scraper (99.8% success, $0.0001/result)
   3. Glassdoor  — valig/glassdoor-jobs-scraper (99.9% success, $0.0004/result)
-  4. IrishJobs  — unfenced-group/irishjobs-ie-scraper (dedicated Ireland board)
-  5. Jobs.ie    — Apify RAG browser (no dedicated actor exists)
-  6. Company career pages — 16 major companies with Ireland offices (RAG browser)
+  4. Company career pages — 16 major companies with Ireland offices (RAG browser)
+
+  (IrishJobs and Jobs.ie scrapers still exist below but are disabled in main();
+  see the note there.)
 
 All sources return structured data. Deduplicates against existing jobs.json.
 """
-import os, re, json, hashlib, time
-from datetime import datetime
+import os, re, json, hashlib, time, inspect
+from datetime import datetime, timedelta
 from apify_client import ApifyClient
 
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
@@ -26,6 +27,20 @@ JOBS_FILE   = os.path.join(ROOT, "web", "data", "jobs.json")
 # matching chip in the dashboard, otherwise those jobs won't appear under
 # any filter.
 SEARCHES = [
+    # Searched first so a mid-run Apify quota exhaustion can't starve it.
+    # Experience cap for this bucket is enforced separately (≤3 years) —
+    # see exceeds_max_experience().
+    ("Trust & Safety", [
+        "trust and safety",
+        "trust and safety analyst",
+        "trust and safety specialist",
+        "content moderator",
+        "content reviewer",
+        "policy enforcement specialist",
+        "online safety analyst",
+        "integrity analyst",
+        "community operations specialist",
+    ]),
     ("Java / Backend", [
         "junior java developer",
         "graduate java engineer",
@@ -116,25 +131,15 @@ SEARCHES = [
         "cloud support engineer",
         "graduate SRE ireland",
     ]),
-    # Experience cap for this bucket is enforced separately (≤3 years) —
-    # see exceeds_max_experience().
-    ("Trust & Safety", [
-        "trust and safety",
-        "trust and safety analyst",
-        "trust and safety specialist",
-        "content moderator",
-        "content reviewer",
-        "policy enforcement specialist",
-        "online safety analyst",
-        "integrity analyst",
-        "community operations specialist",
-    ]),
 ]
 
 # Maximum results per query per source. Bumped 10 → 15 to surface more
 # graduate / entry-level postings per run (more candidate pool given Hari's
 # 0.4% conversion rate so far).
 RESULTS_PER_QUERY = 15
+
+# A healthy Glassdoor run takes ~50 s; anything past this is a hung retry loop.
+GLASSDOOR_TIMEOUT_SECS = 90
 
 # ── Company career pages (RAG browser fallback) ───────────────────────────────
 COMPANY_CAREER_PAGES = [
@@ -257,6 +262,17 @@ def _dataset_id(run):
         return run.get("defaultDatasetId")
     return getattr(run, "defaultDatasetId", None)
 
+# apify-client 1.x takes timeout_secs=int; 3.x takes run_timeout=timedelta.
+# Passing the wrong name raises TypeError, which callers swallow — so pick
+# whichever the installed version actually supports.
+def _run_timeout_kwargs(actor_client, secs):
+    params = inspect.signature(actor_client.call).parameters
+    if "run_timeout" in params:
+        return {"run_timeout": timedelta(seconds=secs)}
+    if "timeout_secs" in params:
+        return {"timeout_secs": secs}
+    return {}
+
 def rag_fetch(client, url, query="software engineer ireland", timeout=120):
     try:
         run   = client.actor("apify/rag-web-browser").call(
@@ -351,13 +367,17 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
     Dedicated Glassdoor scraper — Ireland location, last 30 days.
     """
     try:
-        run = client.actor("valig/glassdoor-jobs-scraper").call(
+        actor = client.actor("valig/glassdoor-jobs-scraper")
+        # Glassdoor's crawler sometimes hangs ~2 min retrying; a timed-out
+        # run still returns whatever it collected.
+        run = actor.call(
             run_input={
                 "keywords": query,
                 "location": "Ireland",
                 "daysOld":  30,
                 "limit":    max_results,
             },
+            **_run_timeout_kwargs(actor, GLASSDOOR_TIMEOUT_SECS),
         )
         items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
@@ -582,7 +602,7 @@ def make_entry(r, category, next_num):
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     print(f"🔍  Multi-platform job search — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"    Sources: LinkedIn (free) | Indeed IE | Glassdoor | IrishJobs | Jobs.ie | 16 company sites")
+    print(f"    Sources: LinkedIn (free) | Indeed IE | Glassdoor | 16 company sites")
     client       = ApifyClient(APIFY_TOKEN)
     existing     = load_existing_jobs()
     existing_ids = {j["id"] for j in existing}
@@ -605,15 +625,12 @@ def main():
 
             # Glassdoor (99.9% success, $0.0004/result)
             all_results += search_glassdoor(client, query, RESULTS_PER_QUERY)
-            time.sleep(2)
 
-            # IrishJobs (dedicated Ireland board)
-            all_results += search_irishjobs(client, query, RESULTS_PER_QUERY)
-            time.sleep(2)
-
-            # Jobs.ie (RAG browser fallback)
-            all_results += search_jobsie(client, query, RESULTS_PER_QUERY)
-            time.sleep(2)
+            # IrishJobs and Jobs.ie are disabled: the IrishJobs actor ignores
+            # the "keywords" input (returns the same 15 generic Dublin jobs
+            # for every query) and is now 403-blocked, burning residential-
+            # proxy credit on retries; Jobs.ie 403s every request. Together
+            # they cost ~1.5 min per query for zero usable results.
 
             for r in all_results:
                 if not is_experience_appropriate(r["title"]):
