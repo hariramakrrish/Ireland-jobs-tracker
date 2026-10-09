@@ -3,6 +3,7 @@
   "name": "hari-job-tracker",
   "buildCommand": "node build.js",
   "outputDirectory": "dist",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- ':(top)' ':(top,exclude)web/data' && exit 0 || exit 1",
   "functions": {
     "api/*.js": { "maxDuration": 10 }
   }

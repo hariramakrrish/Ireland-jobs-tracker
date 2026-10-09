@@ -23,7 +23,10 @@ const distDir = path.join(__dirname, 'dist');
 fs.mkdirSync(distDir, { recursive: true });
 fs.writeFileSync(path.join(distDir, 'index.html'), html);
 
-// Copy data/ and resumes/ into dist/
+// Copy resumes/ into dist/. data/ is deliberately NOT deployed: it holds
+// jobs.json plus ~900 MB of daily Supabase snapshots that are git-only
+// backups — nothing on the site reads them (the dashboard uses /api/jobs),
+// and shipping them made every deployment ~1 GB.
 function copyDir(src, dest) {
   if (!fs.existsSync(src)) return;
   fs.mkdirSync(dest, { recursive: true });
@@ -34,7 +37,6 @@ function copyDir(src, dest) {
     else fs.copyFileSync(s, d);
   }
 }
-copyDir(path.join(__dirname, 'data'),    path.join(distDir, 'data'));
 copyDir(path.join(__dirname, 'resumes'), path.join(distDir, 'resumes'));
 
 console.log(`✅  Build complete → dist/  (token injected: ${token ? 'yes' : 'NO'})`);
