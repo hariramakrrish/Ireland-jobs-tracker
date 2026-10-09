@@ -22,7 +22,7 @@ JOBS_FILE   = os.path.join(ROOT, "web", "data", "jobs.json")
 
 # ── Role categories — MUST EXACTLY MATCH the chip values in web/index.html
 # (Java / Backend, Python, Data Analyst, Data Scientist, AI / ML, IT Support,
-# Full Stack, Production Support). If you add a new bucket here, also add a
+# Full Stack, Production Support, Trust & Safety). If you add a new bucket here, also add a
 # matching chip in the dashboard, otherwise those jobs won't appear under
 # any filter.
 SEARCHES = [
@@ -116,6 +116,19 @@ SEARCHES = [
         "cloud support engineer",
         "graduate SRE ireland",
     ]),
+    # Experience cap for this bucket is enforced separately (≤3 years) —
+    # see exceeds_max_experience().
+    ("Trust & Safety", [
+        "trust and safety",
+        "trust and safety analyst",
+        "trust and safety specialist",
+        "content moderator",
+        "content reviewer",
+        "policy enforcement specialist",
+        "online safety analyst",
+        "integrity analyst",
+        "community operations specialist",
+    ]),
 ]
 
 # Maximum results per query per source. Bumped 10 → 15 to surface more
@@ -163,6 +176,23 @@ def is_experience_appropriate(title: str) -> bool:
     if SENIOR_TITLE_KEYWORDS.search(title):
         return False
     return True   # neutral titles (Software Engineer, Developer, etc.) → include
+
+# Years-of-experience requirement stated in a JD body, e.g. "4+ years of
+# experience", "3-5 years' experience", "minimum of 5 years in ...". For a
+# range the lower bound counts ("3-5 years" is fine under a 3-year cap).
+_YEARS_REQ = re.compile(
+    r"(?i)(?:minimum (?:of )?|at least )?(\d{1,2})\s*(?:\+|plus)?\s*"
+    r"(?:(?:-|–|to)\s*\d{1,2}\s*\+?\s*)?(?:years?|yrs?)'?"
+    r"(?=[^.]{0,60}?\b(?:experience|background|in (?:a |an )?(?:similar|trust|content|moderation|policy|operations)))"
+)
+
+def exceeds_max_experience(description: str, max_years: int = 3) -> bool:
+    """True if the JD asks for more than max_years of experience. Used for the
+    Trust & Safety bucket only (other domains rely on the title filter)."""
+    for m in _YEARS_REQ.finditer(description or ""):
+        if int(m.group(1)) > max_years:
+            return True
+    return False
 
 # Companies whose listings should never enter the tracker (gig-work / AI-trainer
 # spam that floods every search query with hundreds of near-duplicate roles).
@@ -490,8 +520,20 @@ _STRICT_CATEGORY_RULES = [
     (re.compile(r"(?i)\b(software engineer|software developer|sr software|associate software|junior software|graduate software|software internship)\b"), "Full Stack"),
 ]
 
+_TS_TITLE = re.compile(
+    r"(?i)\b(trust\s*(&|and)\s*safety|content (moderat\w*|review\w*|polic\w*|safety|integrity)"
+    r"|moderator|policy enforcement|community (operations|standards|integrity|safety)"
+    r"|online safety|user safety|integrity (analyst|specialist|operations|associate)"
+    r"|abuse (analyst|investigat\w*|specialist)|safety (analyst|specialist|associate|agent))\b"
+)
+# SWE roles on T&S teams ("Trust & Safety Software Engineer") stay in their
+# engineering domain.
+_ENGINEERING_TITLE = re.compile(r"(?i)\b(engineer|developer|scientist|programmer|architect)\b")
+
 def strict_category(title: str, fallback: str) -> str:
     """Return the strict title-driven category, or fallback if no rule matches."""
+    if _TS_TITLE.search(title or "") and not _ENGINEERING_TITLE.search(title or ""):
+        return "Trust & Safety"
     for pat, cat in _STRICT_CATEGORY_RULES:
         if pat.search(title or ""):
             return cat
@@ -580,6 +622,9 @@ def main():
                     continue
                 if not is_swe_title(r["title"]):
                     continue
+                if (strict_category(r["title"], category) == "Trust & Safety"
+                        and exceeds_max_experience(_s(r.get("description", "")))):
+                    continue
                 jid = job_id(r["company"], r["title"])
                 if jid not in existing_ids:
                     entry = make_entry(r, category, next_num)
@@ -600,6 +645,9 @@ def main():
                 if not is_company_allowed(r["company"]):
                     continue
                 if not is_swe_title(r["title"]):
+                    continue
+                if (strict_category(r["title"], category) == "Trust & Safety"
+                        and exceeds_max_experience(_s(r.get("description", "")))):
                     continue
                 jid = job_id(r["company"], r["title"])
                 if jid not in existing_ids:

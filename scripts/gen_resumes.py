@@ -573,6 +573,9 @@ def get_role_key(category, title=""):
     cat   = (category if isinstance(category, str) else "").lower()
     title = (title if isinstance(title, str) else "").lower()
 
+    if "trust" in cat and "safety" in cat:
+        return "trust_safety"
+
     # Title-first detection for specialist roles
     if any(k in title for k in ["site reliability", "sre", "devops", "infrastructure engineer",
                                   "infrastructure developer", "platform automation", "cloud engineer",
@@ -1172,9 +1175,177 @@ Return ONLY the JSON object — no markdown fences, no commentary."""
 
 
 # ═══════════════════════════════════════════════════════════════════
+# TRUST & SAFETY — dedicated two-role resume format
+# Used ONLY for category "Trust & Safety". Every other domain keeps the
+# single-role HCL format above.
+# ═══════════════════════════════════════════════════════════════════
+TS_EXP_HEADER   = "Professional Experience  —  3.5+ Years"
+TS_ACCENTURE_HDR = ("Trust &amp; Safety Agent  —  Accenture, Dublin, Ireland", "Jul 2026 – Present")
+TS_HCL_HDR       = ("Software Engineer  —  HCL Technologies, Chennai, India", "Sep 2021 – Jan 2025")
+
+# The Accenture engagement's client must never be identifiable on the resume.
+_TS_CLIENT_LEAK = re.compile(r"(?i)\b(meta|facebook|instagram|whatsapp|messenger|threads|oculus)\b")
+
+TS_STATIC = {
+    "accenture": [
+        "Review and action high volumes of user-generated content and account reports against detailed <b>community standards</b> and <b>policy guidelines</b>, consistently meeting daily quality and productivity targets.",
+        "Investigate escalated cases involving harassment, hate speech, scams, and inauthentic behaviour, documenting each <b>enforcement decision</b> with clear rationale for audit and calibration.",
+        "Identify emerging <b>abuse patterns</b> and policy gaps during queue reviews and flag trends to team leads and policy specialists to refine enforcement guidelines.",
+        "Maintain high accuracy across <b>quality audits</b> and calibration sessions while handling sensitive and graphic content with resilience, sound judgement, and strict confidentiality.",
+    ],
+    "hcl_java": [
+        "Built and maintained <b>Java Spring Boot</b> services and <b>REST APIs</b> for banking and payments platforms, including transaction validation rules that flagged anomalous and suspicious activity.",
+        "Wrote <b>SQL</b> queries against Oracle and MySQL to investigate data issues and audit transaction records for accuracy and compliance.",
+        "Translated business rules into tested, maintainable code with QA and business stakeholders in Agile sprints.",
+    ],
+    "hcl_prod": [
+        "Owned <b>incident management</b> for high-availability banking platforms, triaging and resolving P1/P2 incidents within strict <b>SLAs</b>.",
+        "Managed incident, problem, and change tickets in <b>ServiceNow</b>, escalating to the right resolver groups and documenting root cause for every case.",
+        "Monitored production health with <b>Splunk</b> and <b>Dynatrace</b>, spotting abnormal transaction patterns early and giving stakeholders clear, timely status updates.",
+        "Wrote runbooks and knowledge-base articles that standardised responses to recurring issues and cut onboarding time for new analysts.",
+    ],
+    "skills": [
+        "<b>Trust &amp; Safety</b>  –  Content moderation, policy enforcement, community standards, escalation handling, abuse and fraud pattern detection.",
+        "<b>Risk &amp; Investigation</b>  –  Case investigation, root-cause analysis, quality audits, calibration, decision documentation.",
+        "<b>Data &amp; Reporting</b>  –  SQL, Python, Excel, Power BI, trend analysis.",
+        "<b>Operations</b>  –  Incident management, SLA adherence, ServiceNow, Splunk, Dynatrace, runbooks.",
+        "<b>Technical</b>  –  Java, Spring Boot, REST APIs, Oracle, MySQL.",
+        "<b>Core Strengths</b>  –  Resilience with sensitive content, attention to detail, clear written communication, confidentiality.",
+    ],
+    "projects": [
+        ("Online Fraud &amp; Abuse Pattern Analysis (MSc Data Analytics)", [
+            "Analysed a labelled dataset of user transactions and reviews in <b>Python</b> (pandas) and <b>SQL</b> to surface behavioural signals of fraud and abusive activity.",
+            "Built a <b>Power BI</b> dashboard tracking flagged-case volumes, abuse categories, and trend shifts over time for reviewer prioritisation.",
+        ]),
+    ],
+}
+
+TS_SYSTEM_PROMPT = """You are an elite recruiter specialising in Trust & Safety, content moderation, integrity, and online-risk roles. You write resume content for one candidate (HARI_PROFILE plus his current Accenture role) tailored to a specific Trust & Safety JD.
+
+WRITING STYLE:
+1. Never use: 'spearheaded', 'leveraged', 'leveraging', 'utilized', 'utilising', 'testament', 'revolutionized', 'fostered', 'dynamic', 'robust', 'driven', 'cutting-edge', 'proven track record'.
+2. Lead each bullet with a strong verb, never repeating a starting verb. Accenture bullets use PRESENT tense (current role); HCL bullets use PAST tense.
+3. Mirror the JD's exact terminology (e.g. "policy enforcement", "community guidelines", "escalations", "risk assessment", "content review"). No hedging language.
+4. Never name the hiring company anywhere in the output.
+5. Never use the banking-standard terms: SWIFT, MT103, ISO 20022, SEPA, PSD2, Open Banking, BFSI.
+6. Banned metrics: 99%, 99.5%, 99.9%, 100% uptime. Roughly half of the bullets may carry a plausible metric; the rest describe scope cleanly.
+7. Wrap key JD terms in <b></b> sparingly (1-2 per bullet)."""
+
+
+def generate_ts_ai_content(job, retry=2):
+    """Gemini call for Trust & Safety JDs. Returns a dict shaped like TS_STATIC."""
+    client = _genai.Client(api_key=GEMINI_API_KEY)
+    _s = lambda v: v if isinstance(v, str) else ""
+    title       = _s(job.get("title", "")).strip()
+    company     = _s(job.get("company", "")).strip()
+    description = _s(job.get("description")).strip()
+    jd_block = (f"Full Job Description:\n---\n{description[:6000]}\n---" if description
+                else f"No JD body available. Infer requirements from Title='{title}', Company='{company}'.")
+
+    user_content = f"""HARI_PROFILE:
+{HARI_PROFILE}
+
+CURRENT ROLE (most recent, add to the profile above):
+  Accenture, Dublin, Ireland — Trust & Safety Agent (Jul 2026 – Present)
+  Reviews and actions user-generated content and account reports against a
+  large-scale online platform's community standards and policies; investigates
+  escalated abuse cases (harassment, hate speech, scams, inauthentic behaviour,
+  graphic content); documents enforcement decisions; flags emerging abuse
+  trends; meets quality-audit, calibration, accuracy and productivity targets.
+
+TARGET ROLE:
+  Title   : {title}
+  Company : {company}
+
+{jd_block}
+
+HARD CONSTRAINTS — violation = rewrite before answering:
+TS-1. The Accenture engagement's client must NEVER be identifiable. Never write
+      Meta, Facebook, Instagram, WhatsApp, Messenger, Threads, Oculus, or any
+      product of that client. Say "a large-scale online platform" if needed.
+TS-2. "accenture": EXACTLY 4 bullets, present tense, tailored to this JD's
+      Trust & Safety duties (moderation, policy, escalations, investigations,
+      quality, risk — whatever the JD emphasises).
+TS-3. "hcl_java": EXACTLY 3 bullets about Java development (Spring Boot, REST
+      APIs, SQL) at HCL. Angle them toward what helps a T&S role: rule-based
+      validation, anomaly/suspicious-activity flagging, data investigation,
+      audit trails, accuracy.
+TS-4. "hcl_prod": EXACTLY 4 bullets about production support at HCL: incident
+      management, SLAs, ServiceNow tickets/escalation, monitoring (Splunk,
+      Dynatrace), runbooks, stakeholder communication. Angle them toward
+      escalation handling, triage, pattern spotting and documentation.
+TS-5. "skills": 5-6 lines. Must contain EVERY skill, tool, policy area and
+      competency the JD names, in the JD's exact wording.
+TS-6. "projects": EXACTLY 1 project, from his MSc Data Analytics, relevant to
+      online safety / fraud / abuse / risk analytics (Python, SQL, Power BI).
+TS-7. Keep every bullet under ~30 words so the resume fits on two pages.
+
+Return ONLY this JSON (no markdown fences):
+{{
+  "accenture": ["...", "...", "...", "..."],
+  "hcl_java":  ["...", "...", "..."],
+  "hcl_prod":  ["...", "...", "...", "..."],
+  "skills":    ["<b>Category</b>  –  item, item, item.", "..."],
+  "projects":  [{{"title": "Project Name (MSc Data Analytics)", "bullets": ["...", "..."]}}]
+}}"""
+
+    for attempt in range(retry + 1):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=user_content,
+                config=_genai_types.GenerateContentConfig(
+                    system_instruction=TS_SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    temperature=0.6,
+                ),
+            )
+            data = json.loads((response.text or "").strip())
+            out = {
+                "accenture": data["accenture"][:4],
+                "hcl_java":  data["hcl_java"][:3],
+                "hcl_prod":  data["hcl_prod"][:4],
+                "skills":    data["skills"],
+                "projects":  [(p["title"], p["bullets"]) for p in data["projects"][:1]],
+            }
+            if (len(out["accenture"]) != 4 or len(out["hcl_java"]) != 3
+                    or len(out["hcl_prod"]) != 4 or not out["projects"]):
+                raise KeyError("wrong bullet counts")
+            blob = json.dumps(out)
+            if _TS_CLIENT_LEAK.search(blob):
+                raise KeyError("client name leaked")
+            return out
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            if attempt < retry:
+                time.sleep(2)
+                continue
+            raise RuntimeError(f"T&S Gemini parse failed after {retry+1} attempts: {e}")
+        except Exception as e:
+            if attempt < retry:
+                time.sleep(3)
+                continue
+            raise RuntimeError(f"T&S Gemini API call failed: {e}")
+
+
+def make_ts_resume(filename, content):
+    roles = [
+        (*TS_ACCENTURE_HDR, content["accenture"]),
+        (*TS_HCL_HDR,       content["hcl_java"] + content["hcl_prod"]),
+    ]
+    make_resume(filename, [], content["skills"], content["projects"], CERTS,
+                roles=roles, exp_header=TS_EXP_HEADER,
+                page_break_before_certs=False)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # PDF LAYOUT (unchanged)
 # ═══════════════════════════════════════════════════════════════════
-def make_resume(filename, exp_bullets, skills, proj_list, certs):
+def make_resume(filename, exp_bullets, skills, proj_list, certs,
+                roles=None, exp_header="Professional Experience  —  3.5 Years",
+                page_break_before_certs=True):
+    # roles: optional list of (left_header, right_dates, bullets). When None,
+    # the single HCL role is rendered from exp_bullets (every domain except
+    # Trust & Safety uses this default path).
     # Always use compress=0 so the PDF is never < 8 KB.
     # (compress=1 can produce tiny PDFs whose story is already consumed when
     # we try to rebuild, resulting in a blank 931-byte file.)
@@ -1219,11 +1390,16 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
         '+353 89 970 6156  &nbsp;•&nbsp;  hariramakrrish@gmail.com  &nbsp;•&nbsp;  '
         'Dublin, Ireland  &nbsp;•&nbsp;  <b>Stamp 1G — Full-Time Work Eligible</b>', contact_s))
 
-    story += section_header("Professional Experience  —  3.5 Years")
-    story.append(role_header("Software Engineer  —  HCL Technologies, Chennai, India", "Sep 2021 – Jan 2025"))
-    story.append(Spacer(1, 3))
-    for b in exp_bullets:
-        story.append(Paragraph(f"•&nbsp;&nbsp;{b}", bullet_s))
+    story += section_header(exp_header)
+    if roles is None:
+        roles = [("Software Engineer  —  HCL Technologies, Chennai, India", "Sep 2021 – Jan 2025", exp_bullets)]
+    for i, (left, right, rbullets) in enumerate(roles):
+        if i:
+            story.append(Spacer(1, 5))
+        story.append(role_header(left, right))
+        story.append(Spacer(1, 3))
+        for b in rbullets:
+            story.append(Paragraph(f"•&nbsp;&nbsp;{b}", bullet_s))
 
     story += section_header("Skills")
     for sk in skills:
@@ -1241,7 +1417,8 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs):
     story.append(role_header("B.E. Computer Science  —  SNS College of Technology, Coimbatore, India", "2021"))
 
     # Force Certifications onto page 2 — page 1 ends after Education.
-    story.append(PageBreak())
+    if page_break_before_certs:
+        story.append(PageBreak())
     story += section_header("Certifications")
     for c in certs:
         story.append(Paragraph(f"•&nbsp;&nbsp;{c}", cert_s))
@@ -1311,6 +1488,25 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
 
         if os.path.exists(fname) and not force_regen:
             skipped += 1
+            continue
+
+        # ── Trust & Safety: dedicated two-role format ──────────────
+        if get_role_key(job.get("category", ""), job.get("title", "")) == "trust_safety":
+            content = TS_STATIC
+            if use_ai:
+                try:
+                    content = generate_ts_ai_content(job)
+                    ai_ok += 1
+                    print(f"  ✓  [AI T&S]  {job['company']} — {job['title']}")
+                except Exception as e:
+                    print(f"  ⚠  [T&S fallback]  {job['company']} — {job['title']}  ({e})")
+                    ai_fallback += 1
+            try:
+                make_ts_resume(fname, content)
+                generated += 1
+            except Exception as e:
+                print(f"  ✗  {job['company']} — {job['title']}  ERROR: {e}")
+                errors += 1
             continue
 
         # ── Try AI path first ──────────────────────────────────────
