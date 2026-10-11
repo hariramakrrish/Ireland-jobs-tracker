@@ -15,6 +15,7 @@ Exits 0 on success. Exits non-zero on any failure so the workflow surfaces it.
 import os, sys, json
 sys.path.insert(0, os.path.dirname(__file__))
 import gen_resumes
+import live_jobs
 
 ROOT      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JOBS_FILE = os.path.join(ROOT, "web", "data", "jobs.json")
@@ -34,10 +35,20 @@ if not gen_resumes._ai_available():
 with open(JOBS_FILE) as f:
     all_jobs = json.load(f)
 
-target = next((j for j in all_jobs if j.get("id") == job_id), None)
+# Jobs added via the dashboard exist only in Supabase, and categories edited
+# there never reach jobs.json — so consult the live row too.
+live     = live_jobs.fetch_live_jobs(required=False) or []
+live_row = next((j for j in live if j.get("id") == job_id), None)
+target   = next((j for j in all_jobs if j.get("id") == job_id), None)
+in_git   = target is not None
 if target is None:
-    print(f"ERROR: job id {job_id!r} not found in jobs.json")
-    sys.exit(2)
+    if live_row is None:
+        print(f"ERROR: job id {job_id!r} not found in jobs.json or on the dashboard")
+        sys.exit(2)
+    target = dict(live_row)
+    print("  (dashboard-added job — using its Supabase row)")
+elif live_row and live_row.get("category"):
+    target["category"] = live_row["category"]
 
 print(f"Regenerating resume for: {target.get('company')} — {target.get('title')}")
 print(f"  Stored JD length      : {len(target.get('description') or '')}")
@@ -46,10 +57,11 @@ print(f"  Override JD provided  : {'yes' if jd_override else 'no'} ({len(jd_over
 # If user provided a new JD, persist it. The AI generator reads from job['description'].
 if jd_override:
     target["description"] = jd_override
-    with open(JOBS_FILE, "w") as f:
-        json.dump(all_jobs, f, indent=2, ensure_ascii=True)
-        f.write("\n")
-    print("  Updated jobs.json with new description.")
+    if in_git:
+        with open(JOBS_FILE, "w") as f:
+            json.dump(all_jobs, f, indent=2, ensure_ascii=True)
+            f.write("\n")
+        print("  Updated jobs.json with new description.")
 
 # Force regenerate this single job (deletes existing PDF first).
 if target.get("resume"):

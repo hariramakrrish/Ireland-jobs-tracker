@@ -82,8 +82,15 @@ def main():
     with open(jobs_file) as f:
         all_jobs = json.load(f)
 
+    # Status/category come from Supabase (git's copy is stale), and this also
+    # picks up jobs added via the dashboard that never reached jobs.json.
+    # Falling back to git is safe here: this pass only fills MISSING PDFs.
+    import live_jobs
+    live = live_jobs.fetch_live_jobs(required=False)
+    candidates = live_jobs.overlay_live(all_jobs, live) if live else all_jobs
+
     missing_pdf_jobs = [
-        j for j in all_jobs
+        j for j in candidates
         if j.get("status") == "Not Applied"
         and not SENIOR.search(j.get("title", ""))
         and (

@@ -12,6 +12,7 @@ or from scripts/regen_targets.json by default.
 import os, sys, json
 sys.path.insert(0, os.path.dirname(__file__))
 import gen_resumes
+import live_jobs
 
 ROOT       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JOBS_FILE  = os.path.join(ROOT, "web", "data", "jobs.json")
@@ -31,8 +32,14 @@ with open(IDS_FILE) as f:
 with open(JOBS_FILE) as f:
     all_jobs = json.load(f)
 
-targets = [j for j in all_jobs if j.get("id") in target_ids]
-print(f"Found {len(targets)} of {len(target_ids)} requested IDs in jobs.json")
+# Live status/category (git's copy is stale) and dashboard-added rows.
+pool    = live_jobs.overlay_live(all_jobs, live_jobs.fetch_live_jobs(required=True))
+found   = [j for j in pool if j.get("id") in target_ids]
+skipped = [j for j in found if j.get("status") in live_jobs.SUBMITTED]
+targets = [j for j in found if j.get("status") not in live_jobs.SUBMITTED]
+print(f"Found {len(found)} of {len(target_ids)} requested IDs on the dashboard")
+for j in skipped:
+    print(f"  skip (resume already submitted, status {j['status']}): {j.get('company')} — {j.get('title')}")
 
 # Force-regen: delete each target's existing PDF so AI path always runs
 deleted = 0

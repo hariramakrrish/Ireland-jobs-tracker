@@ -217,6 +217,7 @@ NON_SWE_TITLE = re.compile(
     r"mechanical engineer|graduate mechanical|hvac|"
     r"(graduate )?electrical engineer|power engineer|"
     r"wastewater|geospatial|surveyor|site engineer|construction|landscape (architect|engineer)|"
+    r"roads and streets|elec\. engineer|"
     r"chemical engineer|process engineer|quantity surveyor|building services|"
     r"ehs |environmental consultant|heritage consultant|continuous improvement|"
     # Lab / Medical / Biotech / Pharma
@@ -557,6 +558,14 @@ _TS_TITLE = re.compile(
 # engineering domain.
 _ENGINEERING_TITLE = re.compile(r"(?i)\b(engineer|developer|scientist|programmer|architect)\b")
 
+def is_ts_search_noise(title: str, bucket: str) -> bool:
+    """T&S searches also surface unrelated engineering roles. If no title rule
+    claims one, it would inherit the T&S bucket — and get the T&S resume
+    format. Drop it; the engineering searches find genuine ones."""
+    return (bucket == "Trust & Safety"
+            and strict_category(title, fallback=None) is None
+            and bool(_ENGINEERING_TITLE.search(title or "")))
+
 def strict_category(title: str, fallback: str) -> str:
     """Return the strict title-driven category, or fallback if no rule matches."""
     if _TS_TITLE.search(title or "") and not _ENGINEERING_TITLE.search(title or ""):
@@ -645,6 +654,8 @@ def main():
                 if not is_company_allowed(r["company"]):
                     continue
                 if not is_swe_title(r["title"]):
+                    continue
+                if is_ts_search_noise(r["title"], category):
                     continue
                 if (strict_category(r["title"], category) == "Trust & Safety"
                         and exceeds_max_experience(_s(r.get("description", "")))):

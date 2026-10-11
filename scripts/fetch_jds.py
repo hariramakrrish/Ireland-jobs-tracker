@@ -128,6 +128,7 @@ def main(regen=False, limit=None, only_num=None):
     print(f"\n🔍  Fetching job descriptions for {len(targets)} job(s)...\n")
 
     fetched = failed = already = 0
+    fetched_ids = set()
     for job in targets:
         num     = job.get("num", "?")
         title   = job.get("title", "")
@@ -144,13 +145,15 @@ def main(regen=False, limit=None, only_num=None):
         desc = rag_fetch_jd(client, url, title, company)
 
         if desc and len(desc) > 100:
-            # Update the matching entry in the full jobs list
+            # Update the matching entry in the full jobs list (by id — "num"
+            # values are not unique)
             for j in jobs:
-                if j.get("num") == num:
+                if j.get("id") == job.get("id"):
                     j["description"] = desc
                     break
             print(f"          ✓  Got {len(desc)} chars")
             fetched += 1
+            fetched_ids.add(job.get("id"))
         else:
             print(f"          ✗  No usable description extracted")
             failed += 1
@@ -170,8 +173,13 @@ def main(regen=False, limit=None, only_num=None):
         print(f"\n🔄  Re-generating resumes for {fetched} job(s) with new descriptions...")
         sys.path.insert(0, os.path.dirname(__file__))
         import gen_resumes  # noqa: E402
+        import live_jobs    # noqa: E402
 
-        jobs_with_new_desc = [j for j in jobs if j.get("description")]
+        # Only jobs whose description was fetched in THIS run and that are
+        # still Not Applied on the dashboard — force_regen replaces the PDF.
+        pool = live_jobs.overlay_live(jobs, live_jobs.fetch_live_jobs(required=True))
+        jobs_with_new_desc = [j for j in pool
+                              if j.get("id") in fetched_ids and j.get("status") == "Not Applied"]
         gen_resumes.generate_for_jobs(jobs_with_new_desc, force_regen=True)
 
 
