@@ -7,12 +7,38 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # A scheduled run on a day when a manual scrape already ran (and wasn't
+  # cancelled/failed) would re-scrape nearly the same jobs and burn Apify
+  # credit for almost nothing — skip it.
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          skip=false
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            today=$(date -u +%Y-%m-%d)
+            n=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow daily.yml \
+                  --event workflow_dispatch --created "$today" --json conclusion \
+                  --jq '[.[] | select(.conclusion != "cancelled" and .conclusion != "failure")] | length')
+            echo "Manual runs today ($today): $n"
+            [ "$n" -gt 0 ] && skip=true
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
   run-pipeline:
+    needs: guard
+    if: needs.guard.outputs.skip != 'true'
     runs-on: ubuntu-latest
 
     steps:
