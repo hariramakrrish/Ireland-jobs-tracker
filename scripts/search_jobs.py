@@ -342,13 +342,20 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
         )
         items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
+        # Since the actor's Sep 2026 update, company/location/description are
+        # nested objects (employer.name, location.city, description.text);
+        # older runs returned flat strings. Accept both.
+        def sub(obj, key):
+            return _s(obj.get(key)) if isinstance(obj, dict) else ""
         for item in items:
             title   = (_s(item.get("title")) or _s(item.get("positionName")) or "").strip()
-            company = (_s(item.get("company")) or _s(item.get("companyName")) or "").strip()
-            loc     = (_s(item.get("location")) or "Ireland").strip()
+            company = (_s(item.get("company")) or _s(item.get("companyName")) or
+                       sub(item.get("employer"), "name") or "").strip()
+            loc     = (_s(item.get("location")) or sub(item.get("location"), "city") or "Ireland").strip()
             url     = item.get("url") or item.get("jobUrl") or ""
-            desc    = (_s(item.get("description")) or _s(item.get("jobDescription")) or
-                       _s(item.get("snippet")) or _s(item.get("summary")) or "").strip()
+            desc    = (_s(item.get("description")) or sub(item.get("description"), "text") or
+                       _s(item.get("jobDescription")) or _s(item.get("snippet")) or
+                       _s(item.get("summary")) or "").strip()
             if title and company and len(title) > 3:
                 jobs.append({"title": title, "company": company,
                              "location": loc, "source": "Indeed", "url": url,
