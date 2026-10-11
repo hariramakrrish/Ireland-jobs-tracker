@@ -96,7 +96,9 @@ jobs:
             attempt=$((attempt + 1))
             echo "--- Push attempt $attempt of $MAX_ATTEMPTS ---"
             git fetch origin main
-            git checkout origin/main -- .                     # hard-rebase to remote
+            # Move HEAD itself to remote main (not just its files) so the
+            # push is a fast-forward even if main moved during the run.
+            git reset --hard origin/main
             python3 scripts/smart_merge.py                    # merge pipeline_jobs.json into jobs.json
             while IFS= read -r p; do
               [ -n "$p" ] && [ -f "/tmp/new_resumes/$(basename "$p")" ] && cp "/tmp/new_resumes/$(basename "$p")" "$p"
@@ -113,7 +115,6 @@ jobs:
               exit 0
             fi
             echo "Push rejected — retrying..."
-            git reset HEAD~1
             sleep 5
           done
 

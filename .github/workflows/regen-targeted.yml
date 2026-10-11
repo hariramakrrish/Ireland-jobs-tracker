@@ -28,29 +28,31 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Stash PDFs, rebase onto remote main, then re-apply PDFs only.
-          # This avoids the prior bug where `git reset --soft` left the
-          # pre-checkout jobs.json in the index, so the commit accidentally
-          # reverted unrelated edits (tailored:true flags etc.) that landed
-          # on main after the workflow started.
+          # Save the regenerated PDFs, then on every attempt move HEAD to the
+          # latest remote main and re-apply only those PDFs. HEAD must move:
+          # `git checkout origin/main -- .` copied files but left HEAD on the
+          # starting commit, so any push to main during the run made every
+          # retry a non-fast-forward rejection (lost 365 resumes on Oct 11).
+          mkdir -p /tmp/regen_pdfs
+          { git diff --name-only -- web/resumes/; git ls-files --others --exclude-standard -- web/resumes/; } > /tmp/regen.list
+          while IFS= read -r p; do [ -n "$p" ] && cp "$p" /tmp/regen_pdfs/; done < /tmp/regen.list
+          echo "Saved $(wc -l < /tmp/regen.list) regenerated PDFs"
           for attempt in 1 2 3 4 5; do
             git fetch origin main
-            git stash push -- web/resumes/ >/dev/null || true
-            git checkout origin/main -- .
-            git stash pop >/dev/null || true
+            git reset --hard origin/main
+            while IFS= read -r p; do [ -n "$p" ] && cp "/tmp/regen_pdfs/$(basename "$p")" "$p"; done < /tmp/regen.list
             git add web/resumes/
             if git diff --cached --quiet; then
               echo "No new resumes to push."
               exit 0
             fi
             COUNT=$(git diff --cached --name-only | wc -l)
-            git commit -m "regen: targeted re-tailoring after credit top-up ($COUNT PDFs)"
+            git commit -m "regen: targeted re-tailoring ($COUNT PDFs)"
             if git push; then
               echo "Push succeeded on attempt $attempt."
               exit 0
             fi
             echo "Push rejected, retrying"
-            git reset HEAD~1
             sleep 10
           done
           echo "ERROR: push failed after 5 attempts"
