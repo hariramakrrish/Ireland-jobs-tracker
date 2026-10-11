@@ -613,6 +613,25 @@ def _ai_available():
     return _GENAI_AVAILABLE and bool(GEMINI_API_KEY)
 
 
+# Once Gemini reports the per-DAY quota is gone, every further call in this
+# run fails the same way — stop calling it instead of retrying each job
+# (that wasted ~30 min per run on the free tier's 20-requests/day cap).
+_DAILY_QUOTA_HIT = False
+
+def _retry_or_raise(e, attempt, retry, label):
+    """Shared error policy for Gemini calls: give up for the whole run on a
+    daily-quota 429, back off on a per-minute 429, retry briefly otherwise."""
+    global _DAILY_QUOTA_HIT
+    msg = str(e)
+    if "RESOURCE_EXHAUSTED" in msg and "PerDay" in msg:
+        _DAILY_QUOTA_HIT = True
+        raise RuntimeError(f"{label}: daily quota exhausted — AI disabled for rest of run")
+    if attempt < retry:
+        time.sleep(20 if "RESOURCE_EXHAUSTED" in msg else 3)
+        return
+    raise RuntimeError(f"{label}: {e}")
+
+
 def generate_ai_content(job, retry=2):
     """
     Call Google Gemini (gemini-2.5-flash-lite) with the elite recruiter system
@@ -1168,10 +1187,7 @@ Return ONLY the JSON object — no markdown fences, no commentary."""
                 continue
             raise RuntimeError(f"Gemini content parse failed after {retry+1} attempts: {e}")
         except Exception as e:
-            if attempt < retry:
-                time.sleep(3)
-                continue
-            raise RuntimeError(f"Gemini API call failed: {e}")
+            _retry_or_raise(e, attempt, retry, "Gemini API call failed")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1321,10 +1337,7 @@ Return ONLY this JSON (no markdown fences):
                 continue
             raise RuntimeError(f"T&S Gemini parse failed after {retry+1} attempts: {e}")
         except Exception as e:
-            if attempt < retry:
-                time.sleep(3)
-                continue
-            raise RuntimeError(f"T&S Gemini API call failed: {e}")
+            _retry_or_raise(e, attempt, retry, "T&S Gemini API call failed")
 
 
 def make_ts_resume(filename, content):
@@ -1493,7 +1506,7 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
         # ── Trust & Safety: dedicated two-role format ──────────────
         if get_role_key(job.get("category", ""), job.get("title", "")) == "trust_safety":
             content = TS_STATIC
-            if use_ai:
+            if use_ai and not _DAILY_QUOTA_HIT:
                 try:
                     content = generate_ts_ai_content(job)
                     ai_ok += 1
@@ -1511,7 +1524,7 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
 
         # ── Try AI path first ──────────────────────────────────────
         bullets = skills = projects = None
-        if use_ai:
+        if use_ai and not _DAILY_QUOTA_HIT:
             try:
                 bullets, skills, projects = generate_ai_content(job)
                 ai_ok += 1
