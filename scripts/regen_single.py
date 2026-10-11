@@ -37,8 +37,7 @@ with open(JOBS_FILE) as f:
 
 # Jobs added via the dashboard exist only in Supabase, and categories edited
 # there never reach jobs.json — so consult the live row too.
-live     = live_jobs.fetch_live_jobs(required=False) or []
-live_row = next((j for j in live if j.get("id") == job_id), None)
+live_row = live_jobs.fetch_job(job_id)
 target   = next((j for j in all_jobs if j.get("id") == job_id), None)
 in_git   = target is not None
 if target is None:

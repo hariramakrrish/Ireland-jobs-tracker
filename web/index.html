@@ -893,13 +893,25 @@ function openRegen(jobId) {
   if (!job) return;
   regenJobId = jobId;
   document.getElementById('regen-subtitle').textContent = `${job.company} — ${job.title}`;
-  // Strip HTML tags from stored description so users can edit clean text
-  const stored = (job.description || '').replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
-  document.getElementById('regen-jd').value = stored;
+  const box = document.getElementById('regen-jd');
+  box.value = '';
+  box.placeholder = 'Loading the stored job description…';
   setRegenStatus('', '');
   document.getElementById('regen-submit').disabled = false;
   document.getElementById('regen-overlay').classList.add('show');
-  document.getElementById('regen-jd').focus();
+  box.focus();
+  // The job list omits descriptions (they made it too large to load), so
+  // fetch this one job's stored JD on demand.
+  fetch('/api/jobs?id=' + encodeURIComponent(jobId))
+    .then(r => r.ok ? r.json() : [])
+    .then(rows => {
+      if (regenJobId !== jobId || box.value) return;   // dialog moved on, or user already typed
+      const desc = (rows[0] && rows[0].description) || '';
+      // Strip HTML tags from stored description so users can edit clean text
+      box.value = desc.replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    })
+    .catch(() => {})
+    .finally(() => { box.placeholder = 'Paste the full JD here for best tailoring…'; });
 }
 
 function closeRegen() {

@@ -30,6 +30,22 @@ module.exports = async function handler(req, res) {
   });
 
   try {
+    // ?id=<jobId> → that one job with every column, including its full
+    // description (used by the dashboard's regenerate dialog and scripts).
+    const id = req.query && req.query.id;
+    if (id) {
+      const { data, error } = await supabase
+        .from('jobs').select('*').eq('id', id).neq('status', 'Deleted');
+      if (error) return res.status(500).json({ error: error.message });
+      return res.status(200).json(data || []);
+    }
+
+    // The list omits `description`: full JDs are ~90% of the payload (13 MB
+    // for ~2.7k jobs on 2026-10-11), which pushed this function past its
+    // time limit and blanked the dashboard. Fetch one job's JD via ?id=.
+    const LIST_COLUMNS = 'id,num,category,title,company,location,source,posted,apply_url,' +
+                         'resume,status,salary,notes,tailored,added,created_at,updated_at';
+
     // Page through ALL rows. PostgREST caps a single .select() at 1000 rows
     // by default, so once the table crosses 1000 jobs a plain select would
     // silently truncate — hiding jobs from the dashboard. We fetch in 1000-
@@ -39,7 +55,7 @@ module.exports = async function handler(req, res) {
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
         .from('jobs')
-        .select('*')
+        .select(LIST_COLUMNS)
         .neq('status', 'Deleted')   // soft-deleted rows stay in the table (so the
                                     // INSERT-only daily sync never resurrects them)
                                     // but are hidden from the dashboard
