@@ -125,6 +125,8 @@
   .btn-apply   { background: var(--blue); color: #fff; }
   .btn-resume  { background: var(--navy); color: #fff; }
   .btn-regen   { background: #fff7ed; color: #c2410c; border:1px solid #fdba74; padding: 5px 8px; font-weight: 700; }
+  .btn-wait    { background: #e2e8f0; color: #334155; cursor: progress; }
+  .btn-missing { background: #fff; color: var(--navy); border: 1px dashed var(--navy); }
   .btn:hover   { opacity: .85; }
 
   /* Regen-resume modal */
@@ -359,25 +361,13 @@
 </div>
 
 <script>
-// ─── GitHub / Sync config ────────────────────────────────────────────────────
-const GH_OWNER = 'hariramakrrish';
-const GH_REPO  = 'Ireland-jobs-tracker';
-const GH_PATH  = 'web/data/jobs.json';
-
-// Auto-seed PAT from Vercel build-time injection (build.js replaces the placeholder).
-// Always overwrites localStorage so a newly-deployed token replaces any revoked one.
-(function() {
-  const injected = '__GITHUB_TOKEN_PLACEHOLDER__';
-  if (injected && injected !== '__GITHUB_TOKEN_PLACEHOLDER__') {
-    localStorage.setItem('gh_pat', injected);
-  }
-})();
-
-function getGHToken() { return localStorage.getItem('gh_pat') || ''; }
-
 // ─── Core sync logic ─────────────────────────────────────────────────────────
+// Statuses go to Supabase via /api/sync-status (server-side key). The old
+// fallback that committed jobs.json with a GitHub token baked into this page
+// is gone — anything in this file is public. Purge copies older builds left.
+try { localStorage.removeItem('gh_pat'); } catch(_) {}
+
 async function syncStatusToGitHub(jobId, status) {
-  // Path 1: serverless function (server-side token, nothing exposed to browser)
   try {
     const r = await fetch('/api/sync-status', {
       method: 'POST',
@@ -386,34 +376,8 @@ async function syncStatusToGitHub(jobId, status) {
     });
     if (r.ok) return true;
     console.warn('Server sync:', r.status);
-  } catch(_) {}
-
-  // Path 2: direct GitHub API using build-time-injected token in localStorage
-  const token = getGHToken();
-  if (!token) return false;
-
-  try {
-    const base = 'https://api.github.com';
-    const hdrs = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' };
-    const getRes = await fetch(`${base}/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, { headers: hdrs });
-    if (!getRes.ok) throw new Error(`GET ${getRes.status}`);
-    const fileData = await getRes.json();
-    const jobs = JSON.parse(atob(fileData.content.replace(/\n/g, '')));
-    const job  = jobs.find(j => j.id === jobId);
-    if (!job) throw new Error('job not found');
-    job.status = status;
-    const putRes = await fetch(`${base}/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, {
-      method: 'PUT', headers: hdrs,
-      body: JSON.stringify({
-        message: `chore: status ${jobId} → ${status}`,
-        content: btoa(unescape(encodeURIComponent(JSON.stringify(jobs, null, 2)))),
-        sha: fileData.sha,
-      }),
-    });
-    if (!putRes.ok) throw new Error(`PUT ${putRes.status}`);
-    return true;
-  } catch(e) {
-    console.error('GitHub sync error:', e);
+    return false;
+  } catch(_) {
     return false;
   }
 }
@@ -518,6 +482,84 @@ let ALL_JOBS = [];
 let pending = {};
 try { pending = JSON.parse(localStorage.getItem("pending_statuses") || "{}"); } catch(e) {}
 
+// ─── Resume availability ─────────────────────────────────────────────────────
+// build.js publishes resumes.json (every PDF in the live deployment). A row
+// whose PDF isn't live yet shows "⏳ Generating…" while a regen is in flight
+// and flips to the 📄 link by itself; otherwise it offers "Make resume" —
+// never a link that 404s.
+let RESUME_FILES = null;   // null = manifest not loaded → assume the PDF exists
+let resumeJobs = {};       // jobId → { since, etag } for regens in flight
+try { resumeJobs = JSON.parse(localStorage.getItem("pending_resumes") || "{}"); } catch(e) {}
+const RESUME_WAIT_MS = 10 * 60 * 1000;
+
+function saveResumeJobs() {
+  try { localStorage.setItem("pending_resumes", JSON.stringify(resumeJobs)); } catch(e) {}
+}
+
+function resumeCell(j) {
+  if (resumeJobs[j.id])
+    return `<span class="btn btn-resume btn-wait" title="Tailoring now — the link appears here by itself">⏳ Generating…</span>`;
+  if (!RESUME_FILES || RESUME_FILES.has(j.resume))
+    return `<a class="btn btn-resume" href="resumes/${j.resume}" target="_blank">📄 Resume</a>`;
+  return `<button class="btn btn-resume btn-missing" title="No PDF yet — generate one" onclick="openRegen('${j.id}')">📄 Make resume</button>`;
+}
+
+function refreshResumeSlots(ids) {
+  const byId = new Map(ALL_JOBS.map(j => [j.id, j]));
+  document.querySelectorAll(".resume-slot").forEach(el => {
+    if (ids && !ids.includes(el.dataset.id)) return;
+    const j = byId.get(el.dataset.id);
+    if (j) el.innerHTML = resumeCell(j);
+  });
+}
+
+// ETag of the live PDF, null if it isn't deployed (or the check failed).
+async function resumeEtag(file) {
+  try {
+    const r = await fetch("resumes/" + file, { method: "HEAD", cache: "no-store" });
+    return r.ok ? (r.headers.get("etag") || "present") : null;
+  } catch(e) { return null; }
+}
+
+// Call right after a regen is queued. Remembers the current PDF's ETag (if
+// any) so a regenerated file is detected even though the old one is still live.
+async function trackResume(jobId) {
+  const job = ALL_JOBS.find(j => j.id === jobId);
+  const etag = job ? await resumeEtag(job.resume) : null;
+  resumeJobs[jobId] = { since: Date.now(), etag };
+  saveResumeJobs();
+  refreshResumeSlots([jobId]);
+}
+
+async function pollResumes() {
+  for (const id of Object.keys(resumeJobs)) {
+    const p = resumeJobs[id];
+    const job = ALL_JOBS.find(j => j.id === id);
+    if (Date.now() - p.since > RESUME_WAIT_MS) {
+      delete resumeJobs[id]; saveResumeJobs(); refreshResumeSlots([id]);
+      showToast(`⚠ Resume for ${job ? job.company : id} didn't arrive — try ✱ again`, "err", 6000);
+      continue;
+    }
+    if (!job) continue;                         // row not loaded yet
+    const etag = await resumeEtag(job.resume);
+    if (!etag || etag === p.etag) continue;     // not live yet, or still the old PDF
+    delete resumeJobs[id]; saveResumeJobs();
+    if (RESUME_FILES) RESUME_FILES.add(job.resume);
+    refreshResumeSlots([id]);
+    showToast(`📄 Resume ready — ${job.company}`, "ok", 5000);
+  }
+}
+setInterval(pollResumes, 10 * 1000);
+
+fetch("resumes.json", { cache: "no-store" })
+  .then(r => r.ok ? r.json() : null)
+  .then(files => {
+    if (!Array.isArray(files)) return;
+    RESUME_FILES = new Set(files);
+    if (ALL_JOBS.length) refreshResumeSlots();
+  })
+  .catch(() => {});
+
 function getStatus(job) {
   return pending[job.id] ?? job.status ?? "Not Applied";
 }
@@ -590,7 +632,7 @@ function renderTable(jobs) {
       <td><select class="status-sel status-${stc}" onchange="changeStatus('${j.id}',this)">${opts}</select></td>
       <td><div class="actions">
         <a class="btn btn-apply"  href="${j.apply_url}" target="_blank">Apply →</a>
-        <a class="btn btn-resume" href="resumes/${j.resume}" target="_blank">📄 Resume</a>
+        <span class="resume-slot" data-id="${j.id}">${resumeCell(j)}</span>
         <button class="btn btn-regen" title="Regenerate resume with a pasted JD" onclick="openRegen('${j.id}')">✱</button>
       </div></td>
     </tr>`;
@@ -977,17 +1019,23 @@ document.getElementById('addjd-submit').addEventListener('click', async () => {
     });
     const out = await r.json();
     if (!r.ok) throw new Error(out.error || `HTTP ${r.status}`);
-    status.style.color = '#15803d';
     const base = out.alreadyExisted
       ? `✓ Job already existed (id ${out.jobId}).`
       : `✓ Job added (id ${out.jobId}).`;
-    status.textContent = out.resumeQueued
-      ? `${base} Tailored resume will appear in ~1 minute.`
-      : `${base} Resume auto-gen skipped (${out.resumeError || 'no token'}) — add it later via the ✱ button.`;
-    showToast('✨ Job added to tracker', 'ok', 4000);
     // Refresh the table after a delay so the new row appears
     setTimeout(() => { loadJobs(); }, 2500);
-    setTimeout(() => { closeAddJd(); }, 2500);
+    if (out.resumeQueued) {
+      status.style.color = '#15803d';
+      status.textContent = `${base} Resume is being tailored — its button shows ⏳ and turns into 📄 by itself in ~2 min.`;
+      trackResume(out.jobId);
+      showToast('✨ Job added — resume generating', 'ok', 4000);
+      setTimeout(() => { closeAddJd(); }, 2500);
+    } else {
+      // Keep the dialog open: the job is saved but no resume is coming.
+      status.style.color = '#b91c1c';
+      status.textContent = `${base} But the resume was NOT started: ${out.resumeError || 'GITHUB_TOKEN not set'}. Fix that, then press ✱ on the row.`;
+      btn.disabled = false;
+    }
   } catch (e) {
     status.style.color = '#b91c1c';
     status.textContent = '✗ ' + (e.message || 'Failed');
@@ -1018,6 +1066,7 @@ document.getElementById('btn-clear-nla').addEventListener('click', async () => {
 
 document.getElementById('regen-submit').addEventListener('click', async () => {
   if (!regenJobId) return;
+  const jobId = regenJobId;   // the dialog may be closed before the request returns
   const jd = document.getElementById('regen-jd').value;
   const btn = document.getElementById('regen-submit');
   btn.disabled = true;
@@ -1026,11 +1075,12 @@ document.getElementById('regen-submit').addEventListener('click', async () => {
     const r = await fetch('/api/regenerate-resume', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId: regenJobId, jd }),
+      body: JSON.stringify({ jobId, jd }),
     });
     const data = await r.json().catch(() => ({}));
     if (r.ok) {
-      setRegenStatus('✓ ' + (data.message || 'Regeneration started. Refresh in 1-2 minutes.'), 'ok');
+      setRegenStatus('✓ Regenerating — the row shows ⏳ and switches to the new 📄 by itself in ~2 min.', 'ok');
+      trackResume(jobId);
     } else {
       setRegenStatus('⚠ ' + (data.error || `HTTP ${r.status}`), 'err');
       btn.disabled = false;

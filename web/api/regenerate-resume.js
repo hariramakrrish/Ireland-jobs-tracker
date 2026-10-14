@@ -54,7 +54,10 @@ module.exports = async function handler(req, res) {
     if (!ghRes.ok) {
       const errBody = await ghRes.text();
       console.error('GitHub dispatch failed:', ghRes.status, errBody);
-      return res.status(502).json({ error: `GitHub dispatch failed: ${ghRes.status}` });
+      const hint = (ghRes.status === 401 || ghRes.status === 403)
+        ? ' — GITHUB_TOKEN in Vercel has expired or lacks access; renew it'
+        : '';
+      return res.status(502).json({ error: `GitHub dispatch failed: ${ghRes.status}${hint}` });
     }
     return res.status(202).json({
       success: true,

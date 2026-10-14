@@ -16,13 +16,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Skip the ~950 MB of web/data snapshots (regen only needs jobs.json) —
+      # the full checkout was a third of this job's runtime.
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/web/data/
+            /web/data/jobs.json
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
         run: pip install -r requirements.txt

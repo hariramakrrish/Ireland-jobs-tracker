@@ -1,27 +1,17 @@
 #!/usr/bin/env node
 /**
- * Build script: injects GITHUB_TOKEN into index.html at Vercel build time.
- * The token never appears in the git repo — only in the deployed output.
+ * Build script: copies index.html + resumes/ into dist/ and writes
+ * dist/resumes.json (every PDF in this deployment) so the dashboard can tell
+ * a ready resume from a missing one instead of linking to a 404.
+ * Nothing secret goes into dist/ — everything there is public.
  */
 const fs   = require('fs');
 const path = require('path');
 
-const token = process.env.GITHUB_TOKEN || '';
-if (!token) {
-  console.warn('⚠  GITHUB_TOKEN not set — status sync will be disabled in production');
-}
-
-// Read source index.html
-const src = path.join(__dirname, 'index.html');
-let html  = fs.readFileSync(src, 'utf8');
-
-// Inject token into the placeholder
-html = html.replace('__GITHUB_TOKEN_PLACEHOLDER__', token);
-
 // Write output (Vercel will serve from dist/)
 const distDir = path.join(__dirname, 'dist');
 fs.mkdirSync(distDir, { recursive: true });
-fs.writeFileSync(path.join(distDir, 'index.html'), html);
+fs.copyFileSync(path.join(__dirname, 'index.html'), path.join(distDir, 'index.html'));
 
 // Copy resumes/ into dist/. data/ is deliberately NOT deployed: it holds
 // jobs.json plus ~900 MB of daily Supabase snapshots that are git-only
@@ -37,6 +27,12 @@ function copyDir(src, dest) {
     else fs.copyFileSync(s, d);
   }
 }
-copyDir(path.join(__dirname, 'resumes'), path.join(distDir, 'resumes'));
+const resumesDir = path.join(__dirname, 'resumes');
+copyDir(resumesDir, path.join(distDir, 'resumes'));
 
-console.log(`✅  Build complete → dist/  (token injected: ${token ? 'yes' : 'NO'})`);
+const pdfs = fs.existsSync(resumesDir)
+  ? fs.readdirSync(resumesDir).filter(f => f.endsWith('.pdf')).sort()
+  : [];
+fs.writeFileSync(path.join(distDir, 'resumes.json'), JSON.stringify(pdfs));
+
+console.log(`✅  Build complete → dist/  (${pdfs.length} resumes)`);

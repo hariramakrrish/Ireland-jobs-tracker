@@ -130,7 +130,9 @@ module.exports = async function handler(req, res) {
       if (ghRes.ok) {
         resumeQueued = true;
       } else {
-        resumeError = `GitHub dispatch HTTP ${ghRes.status}`;
+        resumeError = (ghRes.status === 401 || ghRes.status === 403)
+          ? `GitHub rejected GITHUB_TOKEN (HTTP ${ghRes.status}) — it has expired or lacks access; renew it in Vercel`
+          : `GitHub dispatch HTTP ${ghRes.status}`;
         console.error('GH dispatch failed (job still saved):', ghRes.status, await ghRes.text());
       }
     } catch (e) {
