@@ -43,7 +43,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { company, title, jd, category, apply_url, location } = req.body || {};
+  const { company, title, jd, category, apply_url, location, skip_dispatch } = req.body || {};
   if (!company || !title) {
     return res.status(400).json({ error: 'company and title are required' });
   }
@@ -112,7 +112,10 @@ module.exports = async function handler(req, res) {
   // GITHUB_TOKEN made "Add JD" return 502 and appear completely broken.
   let resumeQueued = false;
   let resumeError  = null;
-  if (ghToken) {
+  if (skip_dispatch) {
+    // The dashboard generates the resume itself via /api/generate_resume
+    // (and only falls back to this GitHub route if that fails).
+  } else if (ghToken) {
     try {
       const ghRes = await fetch('https://api.github.com/repos/hariramakrrish/Ireland-jobs-tracker/dispatches', {
         method: 'POST',

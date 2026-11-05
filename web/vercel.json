@@ -5,6 +5,13 @@
   "outputDirectory": "dist",
   "ignoreCommand": "git diff --quiet HEAD^ HEAD -- ':(top)' ':(top,exclude)web/data' && exit 0 || exit 1",
   "functions": {
-    "api/*.js": { "maxDuration": 30 }
-  }
+    "api/*.js": { "maxDuration": 30 },
+    "api/*.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{data/**,resumes/**,dist/**,node_modules/**}"
+    }
+  },
+  "rewrites": [
+    { "source": "/resumes/:name", "destination": "/api/resume-store?name=:name" }
+  ]
 }

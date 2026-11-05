@@ -483,12 +483,14 @@ let pending = {};
 try { pending = JSON.parse(localStorage.getItem("pending_statuses") || "{}"); } catch(e) {}
 
 // ─── Resume availability ─────────────────────────────────────────────────────
-// build.js publishes resumes.json (every PDF in the live deployment). A row
-// whose PDF isn't live yet shows "⏳ Generating…" while a regen is in flight
-// and flips to the 📄 link by itself; otherwise it offers "Make resume" —
-// never a link that 404s.
-let RESUME_FILES = null;   // null = manifest not loaded → assume the PDF exists
-let resumeJobs = {};       // jobId → { since, etag } for regens in flight
+// build.js publishes resumes.json (every PDF in the live deployment); PDFs
+// generated on demand by /api/generate_resume live in Supabase Storage and are
+// listed by /api/resume-store. A row whose PDF isn't ready shows
+// "⏳ Generating…" and flips to the 📄 link by itself; otherwise it offers
+// "Make resume" — never a link that 404s.
+let RESUME_FILES = null;          // null = manifest not loaded → assume the PDF exists
+let STORED_RESUMES = new Set();   // generated on demand — newer than any pipeline copy
+let resumeJobs = {};              // jobId → { since, etag, direct } for generations in flight
 try { resumeJobs = JSON.parse(localStorage.getItem("pending_resumes") || "{}"); } catch(e) {}
 const RESUME_WAIT_MS = 10 * 60 * 1000;
 
@@ -499,6 +501,8 @@ function saveResumeJobs() {
 function resumeCell(j) {
   if (resumeJobs[j.id])
     return `<span class="btn btn-resume btn-wait" title="Tailoring now — the link appears here by itself">⏳ Generating…</span>`;
+  if (STORED_RESUMES.has(j.resume))
+    return `<a class="btn btn-resume" href="api/resume-store?name=${encodeURIComponent(j.resume)}" target="_blank">📄 Resume</a>`;
   if (!RESUME_FILES || RESUME_FILES.has(j.resume))
     return `<a class="btn btn-resume" href="resumes/${j.resume}" target="_blank">📄 Resume</a>`;
   return `<button class="btn btn-resume btn-missing" title="No PDF yet — generate one" onclick="openRegen('${j.id}')">📄 Make resume</button>`;
@@ -514,9 +518,11 @@ function refreshResumeSlots(ids) {
 }
 
 // ETag of the live PDF, null if it isn't deployed (or the check failed).
-async function resumeEtag(file) {
+// stored=true checks the on-demand copy in Supabase Storage instead.
+async function resumeEtag(file, stored) {
+  const url = stored ? "api/resume-store?name=" + encodeURIComponent(file) : "resumes/" + file;
   try {
-    const r = await fetch("resumes/" + file, { method: "HEAD", cache: "no-store" });
+    const r = await fetch(url, { method: "HEAD", cache: "no-store" });
     return r.ok ? (r.headers.get("etag") || "present") : null;
   } catch(e) { return null; }
 }
@@ -541,21 +547,64 @@ async function pollResumes() {
       continue;
     }
     if (!job) continue;                         // row not loaded yet
-    const etag = await resumeEtag(job.resume);
+    // An on-demand generation reports back itself; poll it only if this page
+    // was reloaded mid-request and it has been running a while.
+    if (p.direct && Date.now() - p.since < 90 * 1000) continue;
+    const etag = await resumeEtag(job.resume, p.direct);
     if (!etag || etag === p.etag) continue;     // not live yet, or still the old PDF
     delete resumeJobs[id]; saveResumeJobs();
-    if (RESUME_FILES) RESUME_FILES.add(job.resume);
+    if (p.direct) STORED_RESUMES.add(job.resume);
+    else if (RESUME_FILES) RESUME_FILES.add(job.resume);
     refreshResumeSlots([id]);
     showToast(`📄 Resume ready — ${job.company}`, "ok", 5000);
   }
 }
 setInterval(pollResumes, 10 * 1000);
 
+// Generate a job's resume right now on Vercel (~10 s, no GitHub token
+// involved). If that fails, fall back to the GitHub Actions regen and poll for
+// its PDF. Resolves to { ok, tailored, seconds } or { ok: false, queued, error }.
+async function generateResumeNow(jobId, jd) {
+  resumeJobs[jobId] = { since: Date.now(), etag: null, direct: true };
+  saveResumeJobs(); refreshResumeSlots([jobId]);
+  const body = JSON.stringify({ jobId, jd: jd || "" });
+  let error;
+  try {
+    const r = await fetch("/api/generate_resume", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    const out = await r.json().catch(() => ({}));
+    if (r.ok && out.file) {
+      STORED_RESUMES.add(out.file);
+      delete resumeJobs[jobId]; saveResumeJobs(); refreshResumeSlots([jobId]);
+      return { ok: true, tailored: out.tailored, seconds: out.seconds };
+    }
+    error = out.error || `HTTP ${r.status}`;
+  } catch (e) { error = e.message; }
+
+  delete resumeJobs[jobId];
+  try {
+    const r = await fetch("/api/regenerate-resume", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    if (r.ok) { await trackResume(jobId); return { ok: false, queued: true, error }; }
+    const out = await r.json().catch(() => ({}));
+    error += ` · GitHub fallback: ${out.error || "HTTP " + r.status}`;
+  } catch (e) { error += ` · GitHub fallback: ${e.message}`; }
+  saveResumeJobs(); refreshResumeSlots([jobId]);
+  return { ok: false, queued: false, error };
+}
+
 fetch("resumes.json", { cache: "no-store" })
   .then(r => r.ok ? r.json() : null)
   .then(files => {
     if (!Array.isArray(files)) return;
     RESUME_FILES = new Set(files);
+    if (ALL_JOBS.length) refreshResumeSlots();
+  })
+  .catch(() => {});
+
+fetch("api/resume-store", { cache: "no-store" })
+  .then(r => r.ok ? r.json() : null)
+  .then(d => {
+    if (!d || !Array.isArray(d.files) || !d.files.length) return;
+    d.files.forEach(f => STORED_RESUMES.add(f));
     if (ALL_JOBS.length) refreshResumeSlots();
   })
   .catch(() => {});
@@ -1010,30 +1059,38 @@ document.getElementById('addjd-submit').addEventListener('click', async () => {
   const btn = document.getElementById('addjd-submit');
   btn.disabled = true;
   status.style.color = '#1f2937';
-  status.textContent = 'Adding job and queueing resume generation…';
+  status.textContent = 'Saving the job…';
   try {
     const r = await fetch('/api/add-job', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company, title, jd, category, apply_url, location: 'Ireland' }),
+      // skip_dispatch: the resume is generated below, not by GitHub Actions
+      body: JSON.stringify({ company, title, jd, category, apply_url, location: 'Ireland', skip_dispatch: true }),
     });
     const out = await r.json();
     if (!r.ok) throw new Error(out.error || `HTTP ${r.status}`);
     const base = out.alreadyExisted
       ? `✓ Job already existed (id ${out.jobId}).`
       : `✓ Job added (id ${out.jobId}).`;
-    // Refresh the table after a delay so the new row appears
-    setTimeout(() => { loadJobs(); }, 2500);
-    if (out.resumeQueued) {
+    refreshJobsData();   // cache-busting reload, so the new row appears now (with ⏳)
+    status.textContent = `${base} Generating the tailored resume (about 10 seconds)…`;
+    const res = await generateResumeNow(out.jobId, jd);
+    if (res.ok) {
       status.style.color = '#15803d';
-      status.textContent = `${base} Resume is being tailored — its button shows ⏳ and turns into 📄 by itself in ~2 min.`;
-      trackResume(out.jobId);
-      showToast('✨ Job added — resume generating', 'ok', 4000);
-      setTimeout(() => { closeAddJd(); }, 2500);
+      status.textContent = res.tailored
+        ? `${base} Resume ready — tailored to this JD in ${res.seconds}s.`
+        : `${base} Resume ready, but as the standard template: add GEMINI_API_KEY in Vercel → Settings → Environment Variables to tailor it to the JD.`;
+      showToast(`📄 Resume ready — ${company}`, 'ok', 5000);
+      if (res.tailored) setTimeout(() => { closeAddJd(); }, 2500);
+      else btn.disabled = false;
+    } else if (res.queued) {
+      status.style.color = '#b45309';
+      status.textContent = `${base} Instant generation failed (${res.error}), so it was queued on GitHub instead — the row switches to 📄 in about 2 minutes.`;
+      setTimeout(() => { closeAddJd(); }, 5000);
     } else {
-      // Keep the dialog open: the job is saved but no resume is coming.
+      // Keep the dialog open: the job is saved but no resume was made.
       status.style.color = '#b91c1c';
-      status.textContent = `${base} But the resume was NOT started: ${out.resumeError || 'GITHUB_TOKEN not set'}. Fix that, then press ✱ on the row.`;
+      status.textContent = `${base} But the resume could not be generated: ${res.error}`;
       btn.disabled = false;
     }
   } catch (e) {
@@ -1070,23 +1127,17 @@ document.getElementById('regen-submit').addEventListener('click', async () => {
   const jd = document.getElementById('regen-jd').value;
   const btn = document.getElementById('regen-submit');
   btn.disabled = true;
-  setRegenStatus('Triggering regeneration…', 'info');
-  try {
-    const r = await fetch('/api/regenerate-resume', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId, jd }),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (r.ok) {
-      setRegenStatus('✓ Regenerating — the row shows ⏳ and switches to the new 📄 by itself in ~2 min.', 'ok');
-      trackResume(jobId);
-    } else {
-      setRegenStatus('⚠ ' + (data.error || `HTTP ${r.status}`), 'err');
-      btn.disabled = false;
-    }
-  } catch (e) {
-    setRegenStatus('⚠ Network error: ' + e.message, 'err');
+  setRegenStatus('Generating the resume (about 10 seconds)…', 'info');
+  const res = await generateResumeNow(jobId, jd);
+  if (res.ok) {
+    setRegenStatus(res.tailored
+      ? `✓ New resume ready — tailored to the JD in ${res.seconds}s.`
+      : '✓ New resume ready, but as the standard template: add GEMINI_API_KEY in Vercel to tailor it.', 'ok');
+    showToast('📄 Resume ready', 'ok', 4000);
+  } else if (res.queued) {
+    setRegenStatus(`⚠ Instant generation failed (${res.error}); queued on GitHub instead — the row switches to the new 📄 in about 2 minutes.`, 'info');
+  } else {
+    setRegenStatus('⚠ ' + res.error, 'err');
     btn.disabled = false;
   }
 });
