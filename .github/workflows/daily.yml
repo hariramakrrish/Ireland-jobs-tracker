@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '0 7 * * *'
   workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: 'Days back to search (about 30 to catch up after a gap; Indeed caps at 14)'
+        default: '3'
 
 permissions:
   contents: write
@@ -59,6 +63,7 @@ jobs:
         env:
           APIFY_TOKEN:      ${{ secrets.APIFY_TOKEN }}
           GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
+          LOOKBACK_DAYS:    ${{ github.event.inputs.lookback_days || '3' }}
         run: python scripts/run_pipeline.py
 
       - name: Sync new jobs.json rows into Supabase

@@ -3,10 +3,12 @@
 Multi-platform Ireland job search pipeline.
 
 Sources:
-  1. LinkedIn   — worldunboxer/rapid-linkedin-scraper (FREE, structured JSON)
+  1. LinkedIn   — worldunboxer/rapid-linkedin-scraper ($0.00035/job incl. details;
+                  jobs already in jobs.json are skipped free)
   2. Indeed IE  — valig/indeed-jobs-scraper (99.8% success, $0.0001/result)
-  3. Glassdoor  — valig/glassdoor-jobs-scraper (99.9% success, $0.0004/result)
-  4. Company career pages — 16 major companies with Ireland offices (RAG browser)
+  3. Glassdoor  — valig/glassdoor-jobs-scraper ($0.0004/result; SWE searches only)
+  4. Company career pages — 16 companies via RAG browser (off unless
+     SCRAPE_COMPANY_PAGES=1)
 
   (IrishJobs and Jobs.ie scrapers still exist below but are disabled in main();
   see the note there.)
@@ -15,6 +17,7 @@ All sources return structured data. Deduplicates against existing jobs.json.
 """
 import os, re, json, hashlib, time, inspect
 from datetime import datetime, timedelta
+from decimal import Decimal
 from apify_client import ApifyClient
 
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
@@ -26,21 +29,10 @@ JOBS_FILE   = os.path.join(ROOT, "web", "data", "jobs.json")
 # Full Stack, Production Support, Trust & Safety). If you add a new bucket here, also add a
 # matching chip in the dashboard, otherwise those jobs won't appear under
 # any filter.
+#
+# Order = priority: software-engineering buckets run first so a mid-run Apify
+# credit exhaustion can't starve them.
 SEARCHES = [
-    # Searched first so a mid-run Apify quota exhaustion can't starve it.
-    # Experience cap for this bucket is enforced separately (≤3 years) —
-    # see exceeds_max_experience().
-    ("Trust & Safety", [
-        "trust and safety",
-        "trust and safety analyst",
-        "trust and safety specialist",
-        "content moderator",
-        "content reviewer",
-        "policy enforcement specialist",
-        "online safety analyst",
-        "integrity analyst",
-        "community operations specialist",
-    ]),
     ("Java / Backend", [
         "junior java developer",
         "graduate java engineer",
@@ -63,36 +55,6 @@ SEARCHES = [
         "software engineer python",
         "graduate backend python ireland",
     ]),
-    ("Data Analyst", [
-        "junior data analyst",
-        "graduate data analyst",
-        "graduate data analyst ireland",
-        "entry level data analyst",
-        "associate business analyst",
-        "graduate business intelligence analyst",
-        "junior SQL analyst",
-        "data analyst graduate dublin",
-        "graduate business analyst data",
-    ]),
-    ("Data Scientist", [
-        "graduate data scientist",
-        "junior data scientist",
-        "associate data scientist",
-        "graduate data scientist ireland",
-        "entry level data scientist",
-        "data science graduate programme",
-    ]),
-    ("AI / ML", [
-        "junior machine learning engineer",
-        "graduate AI engineer",
-        "graduate machine learning engineer",
-        "entry level ML engineer",
-        "associate machine learning engineer",
-        "junior NLP engineer",
-        "AI software engineer entry level",
-        "graduate deep learning engineer",
-        "graduate AI engineer ireland",
-    ]),
     ("Full Stack", [
         "junior full stack developer",
         "graduate software engineer",
@@ -105,16 +67,6 @@ SEARCHES = [
         "junior web developer",
         "graduate fullstack developer dublin",
         "graduate programme software engineer",
-    ]),
-    ("IT Support", [
-        "junior IT support engineer",
-        "graduate IT support",
-        "entry level desktop support",
-        "associate service desk analyst",
-        "junior helpdesk engineer",
-        "IT support analyst",
-        "junior systems administrator",
-        "graduate IT support ireland",
     ]),
     ("Production Support", [
         "junior production support engineer",
@@ -131,12 +83,101 @@ SEARCHES = [
         "cloud support engineer",
         "graduate SRE ireland",
     ]),
+    # Experience cap for this bucket is enforced separately (≤3 years) —
+    # see exceeds_max_experience().
+    ("Trust & Safety", [
+        "trust and safety",
+        "trust and safety analyst",
+        "trust and safety specialist",
+        "content moderator",
+        "content reviewer",
+        "policy enforcement specialist",
+        "online safety analyst",
+        "integrity analyst",
+        "community operations specialist",
+    ]),
+    ("AI / ML", [
+        "junior machine learning engineer",
+        "graduate AI engineer",
+        "graduate machine learning engineer",
+        "entry level ML engineer",
+        "associate machine learning engineer",
+        "junior NLP engineer",
+        "AI software engineer entry level",
+        "graduate deep learning engineer",
+        "graduate AI engineer ireland",
+    ]),
+    ("Data Scientist", [
+        "graduate data scientist",
+        "junior data scientist",
+        "associate data scientist",
+        "graduate data scientist ireland",
+        "entry level data scientist",
+        "data science graduate programme",
+    ]),
+    ("Data Analyst", [
+        "junior data analyst",
+        "graduate data analyst",
+        "graduate data analyst ireland",
+        "entry level data analyst",
+        "associate business analyst",
+        "graduate business intelligence analyst",
+        "junior SQL analyst",
+        "data analyst graduate dublin",
+        "graduate business analyst data",
+    ]),
+    ("IT Support", [
+        "junior IT support engineer",
+        "graduate IT support",
+        "entry level desktop support",
+        "associate service desk analyst",
+        "junior helpdesk engineer",
+        "IT support analyst",
+        "junior systems administrator",
+        "graduate IT support ireland",
+    ]),
 ]
 
-# Maximum results per query per source. Bumped 10 → 15 to surface more
-# graduate / entry-level postings per run (more candidate pool given Hari's
-# 0.4% conversion rate so far).
-RESULTS_PER_QUERY = 15
+# Broad software-engineering searches with no seniority word. Most Irish SWE
+# postings aren't titled "junior"/"graduate", so the bucket queries above miss
+# them. These run before everything else; senior titles are still dropped by
+# is_experience_appropriate() and strict_category() files each result under
+# its real domain (Java, Python, DevOps → Production Support, ...).
+BROAD_SWE_QUERIES = [
+    "software engineer",
+    "software developer",
+    "software engineer II",
+    "java developer",
+    "backend engineer",
+    "python developer",
+    "full stack developer",
+    "frontend developer",
+    ".net developer",
+    "devops engineer",
+    "site reliability engineer",
+    "platform engineer",
+    "cloud engineer",
+    "data engineer",
+]
+
+# Buckets that get the software-engineering treatment: more results per query
+# and Glassdoor coverage. Glassdoor costs 4x Indeed per result and mostly
+# repeats LinkedIn/Indeed for the other buckets, so they skip it.
+SWE_BUCKETS = {"Java / Backend", "Python", "Full Stack", "Production Support"}
+
+# Maximum results per query per source.
+RESULTS_PER_QUERY     = 15
+SWE_RESULTS_PER_QUERY = 30
+BROAD_SWE_RESULTS     = 100
+
+# How many days back each source looks. Daily runs only need a few days (dedup
+# skips known jobs); after a gap, run the workflow by hand with a larger
+# lookback_days to catch up. Indeed can't go past 14 days.
+LOOKBACK_DAYS = max(1, int(os.environ.get("LOOKBACK_DAYS") or 3))
+
+# The 16 career pages below go through the RAG browser — the costliest calls in
+# a run — and yielded 1 job in total in a full run (Oct 2026). Off unless asked.
+SCRAPE_COMPANY_PAGES = os.environ.get("SCRAPE_COMPANY_PAGES") == "1"
 
 # A healthy Glassdoor run takes ~50 s; anything past this is a hung retry loop.
 GLASSDOOR_TIMEOUT_SECS = 90
@@ -274,6 +315,35 @@ def _run_timeout_kwargs(actor_client, secs):
         return {"timeout_secs": secs}
     return {}
 
+# Cap what one actor run may return and charge. Without a cap, a pay-per-event
+# actor needs credit for its default maximum (e.g. 1000 LinkedIn jobs) before
+# it will start, so runs near the end of the monthly credit were refused.
+def _charge_cap_kwargs(actor_client, max_items, max_usd):
+    params = inspect.signature(actor_client.call).parameters
+    kw = {}
+    if "max_items" in params:
+        kw["max_items"] = max_items
+    if "max_total_charge_usd" in params:
+        kw["max_total_charge_usd"] = Decimal(str(round(max_usd, 4)))
+    return kw
+
+# LinkedIn job IDs already in jobs.json or seen earlier in this run. Sent as
+# exclude_job_ids: the actor skips those jobs without charging for them, so
+# overlapping searches and wide catch-up windows only pay for new postings.
+SEEN_LINKEDIN_IDS = set()
+_LINKEDIN_JOB_ID = re.compile(r"linkedin\.com/jobs/view/(?:[^/?#]*-)?(\d{6,})")
+
+def linkedin_job_id(url):
+    m = _LINKEDIN_JOB_ID.search(url or "")
+    return m.group(1) if m else None
+
+def _indeed_date_posted(days):
+    """Indeed only accepts 1, 3, 7 or 14 days: round up, capped at 14."""
+    for opt in (1, 3, 7, 14):
+        if days <= opt:
+            return str(opt)
+    return "14"
+
 def rag_fetch(client, url, query="software engineer ireland", timeout=120):
     try:
         run   = client.actor("apify/rag-web-browser").call(
@@ -290,20 +360,24 @@ def rag_fetch(client, url, query="software engineer ireland", timeout=120):
 # ── 1. LinkedIn — worldunboxer/rapid-linkedin-scraper (FREE) ─────────────────
 def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
     """
-    Uses the FREE dedicated LinkedIn scraper. Returns structured job objects.
-    experience_level: 1=Internship 2=Entry 3=Associate 4=Mid 5=Director 6=Executive
-    job_post_time: r86400=24h r604800=week r2592000=month
+    Dedicated LinkedIn scraper. Returns structured job objects.
+    The actor's inputs changed in 2026: titles go in a jobs_titles list and the
+    posting window is in seconds; the old experience_level / job_type /
+    "r2592000" fields are no longer read, so seniority is filtered by title.
     """
     try:
-        run = client.actor("worldunboxer/rapid-linkedin-scraper").call(
+        actor = client.actor("worldunboxer/rapid-linkedin-scraper")
+        run = actor.call(
             run_input={
-                "job_title":       query,
-                "location":        "Ireland",
-                "jobs_entries":    max_results,
-                "experience_level": "2",   # Entry level
-                "job_post_time":   "r2592000",  # Last month
-                "job_type":        "F",    # Full-time
+                "jobs_titles":         [query],
+                "location":            "Ireland",
+                "jobs_entries":        max_results,
+                "include_job_details": True,   # full description, used for tailoring
+                "job_post_time":       str(LOOKBACK_DAYS * 86400),
+                "exclude_job_ids":     sorted(SEEN_LINKEDIN_IDS),
             },
+            # $0.0001/job + $0.00025 detail enrichment, plus start fees
+            **_charge_cap_kwargs(actor, max_results, max_results * 0.0005 + 0.01),
         )
         items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
@@ -312,6 +386,9 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
             company = (_s(item.get("company_name")) or _s(item.get("company")) or "").strip()
             loc     = (_s(item.get("job_location")) or _s(item.get("location")) or "Ireland").strip()
             url     = item.get("job_url") or item.get("url") or ""
+            lid     = linkedin_job_id(url) or (str(item["job_id"]) if item.get("job_id") else None)
+            if lid:
+                SEEN_LINKEDIN_IDS.add(lid)
             desc    = (_s(item.get("description")) or _s(item.get("job_description")) or
                        _s(item.get("jobDescription")) or _s(item.get("snippet")) or "").strip()
             if title and company and len(title) > 3:
@@ -329,17 +406,21 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
 # ── 2. Indeed IE — valig/indeed-jobs-scraper (99.8% success) ─────────────────
 def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
     """
-    Dedicated Indeed scraper — country=ie for Ireland, datePosted=14 (last 2 weeks).
+    Dedicated Indeed scraper — country=ie for Ireland, last LOOKBACK_DAYS
+    (Indeed caps the window at 14 days).
     """
     try:
-        run = client.actor("valig/indeed-jobs-scraper").call(
+        actor = client.actor("valig/indeed-jobs-scraper")
+        run = actor.call(
             run_input={
                 "country":    "ie",
                 "title":      query,
                 "location":   "Ireland",
                 "limit":      max_results,
-                "datePosted": "14",  # last 14 days
+                "datePosted": _indeed_date_posted(LOOKBACK_DAYS),
             },
+            # $0.0001/result plus start fees
+            **_charge_cap_kwargs(actor, max_results, max_results * 0.00015 + 0.01),
         )
         items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
@@ -372,7 +453,7 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
 # ── 3. Glassdoor — valig/glassdoor-jobs-scraper (99.9% success) ──────────────
 def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
     """
-    Dedicated Glassdoor scraper — Ireland location, last 30 days.
+    Dedicated Glassdoor scraper — Ireland location, last LOOKBACK_DAYS.
     """
     try:
         actor = client.actor("valig/glassdoor-jobs-scraper")
@@ -382,10 +463,12 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
             run_input={
                 "keywords": query,
                 "location": "Ireland",
-                "daysOld":  30,
+                "daysOld":  LOOKBACK_DAYS,
                 "limit":    max_results,
             },
             **_run_timeout_kwargs(actor, GLASSDOOR_TIMEOUT_SECS),
+            # $0.0004/result plus start fees
+            **_charge_cap_kwargs(actor, max_results, max_results * 0.0006 + 0.01),
         )
         items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
@@ -618,29 +701,39 @@ def make_entry(r, category, next_num):
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     print(f"🔍  Multi-platform job search — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"    Sources: LinkedIn (free) | Indeed IE | Glassdoor | 16 company sites")
+    print(f"    Sources: LinkedIn | Indeed IE | Glassdoor (SWE searches)"
+          f"{' | 16 company sites' if SCRAPE_COMPANY_PAGES else ''}")
     client       = ApifyClient(APIFY_TOKEN)
     existing     = load_existing_jobs()
     existing_ids = {j["id"] for j in existing}
+    SEEN_LINKEDIN_IDS.update(filter(None, (linkedin_job_id(j.get("apply_url")) for j in existing)))
+    print(f"    Lookback: {LOOKBACK_DAYS} days  |  known LinkedIn jobs skipped: {len(SEEN_LINKEDIN_IDS)}")
     new_jobs     = []
     next_num     = max((j.get("num", 0) for j in existing), default=0) + 1
 
-    for (category, queries) in SEARCHES:
-        print(f"\n  📂  {category}")
+    # (label, fallback category, queries, results per source, use Glassdoor)
+    plan = [("Software engineering (broad)", "Full Stack", BROAD_SWE_QUERIES, BROAD_SWE_RESULTS, True)]
+    plan += [(cat, cat, qs,
+              SWE_RESULTS_PER_QUERY if cat in SWE_BUCKETS else RESULTS_PER_QUERY,
+              cat in SWE_BUCKETS)
+             for cat, qs in SEARCHES]
+
+    for (label, category, queries, limit, use_glassdoor) in plan:
+        print(f"\n  📂  {label}")
         for query in queries:
             print(f"    🔎  {query}")
             all_results = []
 
-            # LinkedIn (FREE dedicated scraper)
-            all_results += search_linkedin(client, query, RESULTS_PER_QUERY)
+            all_results += search_linkedin(client, query, limit)
             time.sleep(2)
 
-            # Indeed IE (99.8% success, $0.0001/result)
-            all_results += search_indeed(client, query, RESULTS_PER_QUERY)
-            time.sleep(2)
+            # Indeed IE ($0.0001/result)
+            all_results += search_indeed(client, query, limit)
 
-            # Glassdoor (99.9% success, $0.0004/result)
-            all_results += search_glassdoor(client, query, RESULTS_PER_QUERY)
+            # Glassdoor ($0.0004/result) — software-engineering searches only
+            if use_glassdoor:
+                time.sleep(2)
+                all_results += search_glassdoor(client, query, min(limit, 50))
 
             # IrishJobs and Jobs.ie are disabled: the IrishJobs actor ignores
             # the "keywords" input (returns the same 15 generic Dublin jobs
@@ -669,8 +762,11 @@ def main():
                     print(f"        ✓  [{r.get('source','?')}] {r['title']} @ {r['company']}")
 
     # ── Company career pages ────────────────────────────────────────────────
-    print("\n\n🏢  Scraping company career pages...")
-    for (company, url, cat) in COMPANY_CAREER_PAGES:
+    if SCRAPE_COMPANY_PAGES:
+        print("\n\n🏢  Scraping company career pages...")
+    else:
+        print("\n\n🏢  Company career pages skipped (set SCRAPE_COMPANY_PAGES=1 to enable)")
+    for (company, url, cat) in (COMPANY_CAREER_PAGES if SCRAPE_COMPANY_PAGES else []):
         try:
             results, category = search_company_careers(client, company, url, cat)
             time.sleep(3)
