@@ -8,7 +8,8 @@ original status and the job description.
 | File | What |
 |---|---|
 | `jobs-archived-2026-11-06-added-before-2026-08-01.json` | 1,135 jobs added before 1 Aug 2026 that were Not Applied / No Longer Available (full rows + JD) |
-| `…csv` | Same jobs without descriptions, for opening in Excel |
+| `jobs-archived-2026-11-06-added-2026-08-01-to-2026-09-01.json` | 308 jobs added in August 2026, same rule |
+| `*.csv` | Same jobs without descriptions, for opening in Excel |
 
 Applied, Interviewing, Rejected and Selected jobs were not archived.
 
