@@ -8,6 +8,9 @@ on:
       lookback_days:
         description: 'Days back to search (about 30 to catch up after a gap; Indeed caps at 14)'
         default: '3'
+      sources:
+        description: 'Job boards to query, comma-separated (re-run just one after it failed)'
+        default: 'linkedin,indeed,glassdoor'
 
 permissions:
   contents: write
@@ -64,6 +67,7 @@ jobs:
           APIFY_TOKEN:      ${{ secrets.APIFY_TOKEN }}
           GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
           LOOKBACK_DAYS:    ${{ github.event.inputs.lookback_days || '3' }}
+          SOURCES:          ${{ github.event.inputs.sources || 'linkedin,indeed,glassdoor' }}
         run: python scripts/run_pipeline.py
 
       - name: Sync new jobs.json rows into Supabase

@@ -179,6 +179,11 @@ LOOKBACK_DAYS = max(1, int(os.environ.get("LOOKBACK_DAYS") or 3))
 # a run — and yielded 1 job in total in a full run (Oct 2026). Off unless asked.
 SCRAPE_COMPANY_PAGES = os.environ.get("SCRAPE_COMPANY_PAGES") == "1"
 
+# Which job boards to query (comma-separated). A retry after one board failed
+# can re-run just that board instead of paying again for the others.
+SOURCES = {s.strip().lower() for s in
+           (os.environ.get("SOURCES") or "linkedin,indeed,glassdoor").split(",") if s.strip()}
+
 # A healthy Glassdoor run takes ~50 s; anything past this is a hung retry loop.
 GLASSDOOR_TIMEOUT_SECS = 90
 
@@ -318,13 +323,17 @@ def _run_timeout_kwargs(actor_client, secs):
 # Cap what one actor run may return and charge. Without a cap, a pay-per-event
 # actor needs credit for its default maximum (e.g. 1000 LinkedIn jobs) before
 # it will start, so runs near the end of the monthly credit were refused.
+# Apify rejects caps under $0.05 ("Maximum cost per run is less than the
+# allowed minimum"), which killed 83 of 97 LinkedIn searches on 2026-11-05.
+MIN_CHARGE_CAP_USD = 0.05
+
 def _charge_cap_kwargs(actor_client, max_items, max_usd):
     params = inspect.signature(actor_client.call).parameters
     kw = {}
     if "max_items" in params:
         kw["max_items"] = max_items
     if "max_total_charge_usd" in params:
-        kw["max_total_charge_usd"] = Decimal(str(round(max_usd, 4)))
+        kw["max_total_charge_usd"] = Decimal(str(round(max(max_usd, MIN_CHARGE_CAP_USD), 4)))
     return kw
 
 # LinkedIn job IDs already in jobs.json or seen earlier in this run. Sent as
@@ -701,7 +710,7 @@ def make_entry(r, category, next_num):
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     print(f"🔍  Multi-platform job search — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"    Sources: LinkedIn | Indeed IE | Glassdoor (SWE searches)"
+    print(f"    Sources: {', '.join(sorted(SOURCES))} (Glassdoor: SWE searches only)"
           f"{' | 16 company sites' if SCRAPE_COMPANY_PAGES else ''}")
     client       = ApifyClient(APIFY_TOKEN)
     existing     = load_existing_jobs()
@@ -724,14 +733,16 @@ def main():
             print(f"    🔎  {query}")
             all_results = []
 
-            all_results += search_linkedin(client, query, limit)
-            time.sleep(2)
+            if "linkedin" in SOURCES:
+                all_results += search_linkedin(client, query, limit)
+                time.sleep(2)
 
             # Indeed IE ($0.0001/result)
-            all_results += search_indeed(client, query, limit)
+            if "indeed" in SOURCES:
+                all_results += search_indeed(client, query, limit)
 
             # Glassdoor ($0.0004/result) — software-engineering searches only
-            if use_glassdoor:
+            if use_glassdoor and "glassdoor" in SOURCES:
                 time.sleep(2)
                 all_results += search_glassdoor(client, query, min(limit, 50))
 
