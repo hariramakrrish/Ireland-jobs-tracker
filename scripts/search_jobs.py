@@ -16,6 +16,7 @@ Sources:
 All sources return structured data. Deduplicates against existing jobs.json.
 """
 import os, re, json, hashlib, time, inspect
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from decimal import Decimal
 from apify_client import ApifyClient
@@ -186,6 +187,16 @@ SOURCES = {s.strip().lower() for s in
 
 # A healthy Glassdoor run takes ~50 s; anything past this is a hung retry loop.
 GLASSDOOR_TIMEOUT_SECS = 90
+
+# The LinkedIn actor's own limit is 12 hours, so one search that keeps paging
+# (e.g. digging past hundreds of known jobs for new ones) could stall a whole
+# run. A timed-out run still returns what it collected.
+LINKEDIN_TIMEOUT_SECS = 180
+
+# Stop starting new searches after this long and move on to saving + resumes,
+# so a slow run can never hit GitHub's 6-hour limit and lose everything.
+# Searches run in priority order, so only the lowest-priority ones get cut.
+SEARCH_BUDGET_MINUTES = int(os.environ.get("SEARCH_BUDGET_MINUTES") or 150)
 
 # ── Company career pages (RAG browser fallback) ───────────────────────────────
 COMPANY_CAREER_PAGES = [
@@ -385,6 +396,7 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
                 "job_post_time":       str(LOOKBACK_DAYS * 86400),
                 "exclude_job_ids":     sorted(SEEN_LINKEDIN_IDS),
             },
+            **_run_timeout_kwargs(actor, LINKEDIN_TIMEOUT_SECS),
             # $0.0001/job + $0.00025 detail enrichment, plus start fees
             **_charge_cap_kwargs(actor, max_results, max_results * 0.0005 + 0.01),
         )
@@ -713,6 +725,11 @@ def main():
     print(f"    Sources: {', '.join(sorted(SOURCES))} (Glassdoor: SWE searches only)"
           f"{' | 16 company sites' if SCRAPE_COMPANY_PAGES else ''}")
     client       = ApifyClient(APIFY_TOKEN)
+    # One client per board: each board's searches run one at a time in its own
+    # worker thread, so no client is shared between threads.
+    board_client = {b: ApifyClient(APIFY_TOKEN) for b in ("linkedin", "indeed", "glassdoor")}
+    pool         = ThreadPoolExecutor(max_workers=3)
+    started      = time.time()
     existing     = load_existing_jobs()
     existing_ids = {j["id"] for j in existing}
     SEEN_LINKEDIN_IDS.update(filter(None, (linkedin_job_id(j.get("apply_url")) for j in existing)))
@@ -727,24 +744,30 @@ def main():
               cat in SWE_BUCKETS)
              for cat, qs in SEARCHES]
 
+    out_of_time = False
     for (label, category, queries, limit, use_glassdoor) in plan:
         print(f"\n  📂  {label}")
         for query in queries:
+            if time.time() - started > SEARCH_BUDGET_MINUTES * 60:
+                out_of_time = True
+                break
             print(f"    🔎  {query}")
-            all_results = []
 
+            # The boards are searched at the same time (≈3.2 GB of Apify memory
+            # together, well inside the plan's limit), so a query takes as long
+            # as its slowest board instead of all three added up.
+            futures = []
             if "linkedin" in SOURCES:
-                all_results += search_linkedin(client, query, limit)
-                time.sleep(2)
-
+                futures.append(pool.submit(search_linkedin, board_client["linkedin"], query, limit))
             # Indeed IE ($0.0001/result)
             if "indeed" in SOURCES:
-                all_results += search_indeed(client, query, limit)
-
+                futures.append(pool.submit(search_indeed, board_client["indeed"], query, limit))
             # Glassdoor ($0.0004/result) — software-engineering searches only
             if use_glassdoor and "glassdoor" in SOURCES:
-                time.sleep(2)
-                all_results += search_glassdoor(client, query, min(limit, 50))
+                futures.append(pool.submit(search_glassdoor, board_client["glassdoor"], query, min(limit, 50)))
+            all_results = []
+            for f in futures:          # LinkedIn, Indeed, Glassdoor order — as before
+                all_results += f.result()
 
             # IrishJobs and Jobs.ie are disabled: the IrishJobs actor ignores
             # the "keywords" input (returns the same 15 generic Dublin jobs
@@ -771,6 +794,10 @@ def main():
                     existing_ids.add(jid)
                     next_num += 1
                     print(f"        ✓  [{r.get('source','?')}] {r['title']} @ {r['company']}")
+        if out_of_time:
+            print(f"\n  ⏱  Search budget ({SEARCH_BUDGET_MINUTES} min) used up — skipping the remaining searches")
+            break
+    pool.shutdown(wait=True)
 
     # ── Company career pages ────────────────────────────────────────────────
     if SCRAPE_COMPANY_PAGES:

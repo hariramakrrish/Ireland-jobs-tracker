@@ -68,6 +68,7 @@ jobs:
           GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
           LOOKBACK_DAYS:    ${{ github.event.inputs.lookback_days || '3' }}
           SOURCES:          ${{ github.event.inputs.sources || 'linkedin,indeed,glassdoor' }}
+          PYTHONUNBUFFERED: '1'   # stream progress to the live log instead of in buffered bursts
         run: python scripts/run_pipeline.py
 
       - name: Sync new jobs.json rows into Supabase
