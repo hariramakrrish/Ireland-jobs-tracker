@@ -56,9 +56,10 @@ module.exports = async function handler(req, res) {
       const { data, error } = await supabase
         .from('jobs')
         .select(LIST_COLUMNS)
-        .neq('status', 'Deleted')   // soft-deleted rows stay in the table (so the
-                                    // INSERT-only daily sync never resurrects them)
-                                    // but are hidden from the dashboard
+        // Soft-deleted and archived rows stay in the table (so the INSERT-only
+        // daily sync never resurrects them) but are hidden from the dashboard.
+        // Archived rows are backed up in web/data/archive/.
+        .not('status', 'in', '("Deleted","Archived")')
         .order('num', { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) {
