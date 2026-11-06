@@ -26,8 +26,8 @@ ROOT        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JOBS_FILE   = os.path.join(ROOT, "web", "data", "jobs.json")
 
 # ── Role categories — MUST EXACTLY MATCH the chip values in web/index.html
-# (Java / Backend, Python, Data Analyst, Data Scientist, AI / ML, IT Support,
-# Full Stack, Production Support, Trust & Safety). If you add a new bucket here, also add a
+# (Java / Backend, Python, Data Analyst, Data Scientist, Data Engineer, AI / ML,
+# IT Support, Full Stack, Production Support, Trust & Safety). If you add a new bucket here, also add a
 # matching chip in the dashboard, otherwise those jobs won't appear under
 # any filter.
 #
@@ -641,14 +641,18 @@ def save_jobs(jobs):
 # Order matters: most specific rules first; first match wins.
 _STRICT_CATEGORY_RULES = [
     (re.compile(r"(?i)\b(machine learning|\bml\b engineer|\bai\b engineer|deep learning|\bnlp\b|computer vision|\bllm\b|gen[- ]?ai|generative ai|ai agents|mlops|ai/ml|ai engineer|ml ops|ai software)\b"), "AI / ML"),
-    (re.compile(r"(?i)\bdata scientists?\b|biostatistician|statistical programmer|\bdata science\b"), "Data Scientist"),
-    (re.compile(r"(?i)\b(data analyst|bi analyst|business intelligence|reporting analyst|analytics analyst)\b"), "Data Analyst"),
-    (re.compile(r"(?i)\b(helpdesk|help desk|service desk|desktop support|ict support|technical support|it support|l1 support|l2 support|level 1 support|level 2 support|systems? admin)\b"), "IT Support"),
+    (re.compile(r"(?i)\bdata scientists?\b|\b(bio)?statistician\b|statistical programmer|\bdata science\b"), "Data Scientist"),
+    (re.compile(r"(?i)\b(data analyst|bi analyst|business intelligence|reporting analyst|analytics analyst|data analytics)\b"), "Data Analyst"),
+    (re.compile(r"(?i)\b(data engineer(ing)?|etl (developer|engineer)|analytics engineer|big data (engineer|developer)|data platform engineer|data warehouse (engineer|developer)|databricks (engineer|developer)|(pl/?)?sql developer|database developer)\b"), "Data Engineer"),
+    (re.compile(r"(?i)\b(helpdesk|help desk|service desk|desktop support|ict support|technical support|it support|l1 support|l2 support|level 1 support|level 2 support|systems? admin|data ?cent(er|re) (technician|operations))\b"), "IT Support"),
     (re.compile(r"(?i)\b(devops|\bsre\b|site reliability|cloud engineer|platform engineer|aws engineer|azure engineer|kubernetes|infrastructure engineer|terraform|application support|production support|reliability engineer|cloud operations|cloud platform|cloud architect|cloud developer|cloud security|cybersecurity|cyber security|security engineer|qa engineer|test automation)\b"), "Production Support"),
-    (re.compile(r"(?i)\b(react|vue|angular|frontend|front[- ]end|\bui\b engineer|\bui\b developer|full[- ]?stack|fullstack|mobile (engineer|developer)|\bios\b engineer|android (engineer|developer)|web developer|wordpress)\b"), "Full Stack"),
-    (re.compile(r"(?i)\b(java\b|spring boot|jvm|scala (engineer|developer)|kotlin (engineer|developer)|backend (engineer|developer|software)|back[- ]end (engineer|developer))\b"), "Java / Backend"),
+    # Language before stack: "Full Stack Java Developer" is a Java role and
+    # "Python Backend Engineer" a Python one; a plain "Backend Engineer" stays
+    # under Java / Backend.
+    (re.compile(r"(?i)\b(java\b|spring boot|jvm|scala (engineer|developer)|kotlin (engineer|developer))\b"), "Java / Backend"),
     (re.compile(r"(?i)\b(python|django|flask|fastapi|pyspark|airflow developer)\b"), "Python"),
-    (re.compile(r"(?i)\bdata engineer\b"), "Python"),
+    (re.compile(r"(?i)\b(backend (engineer|developer|software)|back[- ]end (engineer|developer))\b"), "Java / Backend"),
+    (re.compile(r"(?i)\b(react|vue|angular|frontend|front[- ]end|\bui\b engineer|\bui\b developer|full[- ]?stack|fullstack|mobile (engineer|developer)|\bios\b engineer|android (engineer|developer)|web developer|wordpress)\b"), "Full Stack"),
     (re.compile(r"(?i)\b(software engineer|software developer|sr software|associate software|junior software|graduate software|software internship)\b"), "Full Stack"),
 ]
 
@@ -677,6 +681,11 @@ def strict_category(title: str, fallback: str) -> str:
     for pat, cat in _STRICT_CATEGORY_RULES:
         if pat.search(title or ""):
             return cat
+    # Java/Python searches also return plenty of generic titles ("Graduate
+    # Programme", "Analyst"); without a language signal they're general
+    # software roles, not Java or Python ones.
+    if fallback in ("Java / Backend", "Python"):
+        return "Full Stack"
     return fallback
 
 def make_entry(r, category, next_num):

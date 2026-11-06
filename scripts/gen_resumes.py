@@ -590,6 +590,7 @@ def get_role_key(category, title=""):
         return "qa_testing"
 
     # Category-based fallback
+    if "data engineer" in cat:                               return "python"   # ETL / Python / SQL content
     if "java" in cat or "backend" in cat:                    return "java"
     if "python" in cat:                                      return "python"
     if "data analyst" in cat:                                return "data_analyst"
