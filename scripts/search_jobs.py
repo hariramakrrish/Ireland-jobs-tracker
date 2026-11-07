@@ -15,7 +15,7 @@ Sources:
 
 All sources return structured data. Deduplicates against existing jobs.json.
 """
-import os, re, json, hashlib, time, inspect
+import os, re, json, hashlib, time, inspect, collections, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -139,16 +139,33 @@ SEARCHES = [
     ]),
 ]
 
+# Broad Java / backend / support searches with no seniority word: Hari's core
+# profile (Java + production support at HCL). They run first, so neither the
+# time budget nor the Apify credit guard can cut them short.
+BROAD_JAVA_QUERIES = [
+    "java developer",
+    "java software engineer",
+    "java backend developer",
+    "java full stack developer",
+    "spring boot developer",
+    "java engineer",
+    "backend developer",
+    "software development engineer",
+    "microservices developer",
+    "application support engineer",
+    "production support engineer",
+]
+
 # Broad software-engineering searches with no seniority word. Most Irish SWE
 # postings aren't titled "junior"/"graduate", so the bucket queries above miss
-# them. These run before everything else; senior titles are still dropped by
-# is_experience_appropriate() and strict_category() files each result under
-# its real domain (Java, Python, DevOps → Production Support, ...).
+# them. These run right after the Java ones; senior titles and roles asking
+# for more than MAX_YEARS_EXPERIENCE are still dropped, and strict_category()
+# files each result under its real domain (Java, Python, DevOps → Production
+# Support, ...).
 BROAD_SWE_QUERIES = [
     "software engineer",
     "software developer",
     "software engineer II",
-    "java developer",
     "backend engineer",
     "python developer",
     "full stack developer",
@@ -167,9 +184,10 @@ BROAD_SWE_QUERIES = [
 SWE_BUCKETS = {"Java / Backend", "Python", "Full Stack", "Production Support"}
 
 # Maximum results per query per source.
-RESULTS_PER_QUERY     = 15
-SWE_RESULTS_PER_QUERY = 30
-BROAD_SWE_RESULTS     = 100
+RESULTS_PER_QUERY      = 15
+SWE_RESULTS_PER_QUERY  = 30
+JAVA_RESULTS_PER_QUERY = 50    # the Java / Backend bucket
+BROAD_SWE_RESULTS      = 100
 
 # How many days back each source looks. Daily runs only need a few days (dedup
 # skips known jobs); after a gap, run the workflow by hand with a larger
@@ -198,6 +216,12 @@ LINKEDIN_TIMEOUT_SECS = 180
 # Searches run in priority order, so only the lowest-priority ones get cut.
 SEARCH_BUDGET_MINUTES = int(os.environ.get("SEARCH_BUDGET_MINUTES") or 150)
 
+# Stop starting new searches when the Apify account has less than this left
+# for the month. Without it, the monthly hard limit hit mid-run and every
+# later search silently returned nothing (Oct 2026). One query's three boards
+# can charge at most ~$0.16, so this always leaves room for the last one.
+CREDIT_RESERVE_USD = float(os.environ.get("APIFY_CREDIT_RESERVE_USD") or 0.30)
+
 # ── Company career pages (RAG browser fallback) ───────────────────────────────
 COMPANY_CAREER_PAGES = [
     ("Microsoft",   "https://careers.microsoft.com/v2/global/en/locations/dublin.html",               "Full Stack"),
@@ -219,12 +243,21 @@ COMPANY_CAREER_PAGES = [
 ]
 
 # ── Experience filter ──────────────────────────────────────────────────────────
+# Hari has about 3.5 years of experience, so roles asking for more are dropped,
+# both by title (Senior, Lead, ...) and by the years the JD asks for.
+MAX_YEARS_EXPERIENCE = float(os.environ.get("MAX_YEARS_EXPERIENCE") or 3.5)
+
+# Senior whatever else the title says ("Associate Director", "Senior
+# Associate", "Lead Graduate Engineer").
 SENIOR_TITLE_KEYWORDS = re.compile(
-    r"\b(senior|sr\.?|lead|principal|staff|head\s+of|director|vp\b|vice\s+president"
-    r"|architect|manager|consultant|expert|level\s+[4-9]"
+    r"\b(senior|snr|sr\.?|lead|principal|staff|head\s+of|director|vp\b|vice\s+president"
+    r"|chief|cto|cio|architect|leader|expert|experienced|level\s+[4-9]"
+    r"|(?:engineer|developer|analyst)\s+(?:iv|v|vi|[4-9])"
     r"|[4-9]\+?\s*years?|[1-9][0-9]\+?\s*years?)\b",
     re.IGNORECASE
 )
+# Senior-sounding words that a junior keyword outweighs ("Graduate Consultant").
+SOFT_SENIOR_TITLE_KEYWORDS = re.compile(r"\b(manager|consultant)\b", re.IGNORECASE)
 JUNIOR_TITLE_KEYWORDS = re.compile(
     r"\b(junior|jr\.?|graduate|grad\b|intern|trainee|associate|entry.?level"
     r"|new\s+grad|early\s+career|apprentice|software\s+engineer\s+i{1,2}$"
@@ -233,36 +266,55 @@ JUNIOR_TITLE_KEYWORDS = re.compile(
 )
 
 def is_experience_appropriate(title: str) -> bool:
-    if JUNIOR_TITLE_KEYWORDS.search(title):
-        return True
     if SENIOR_TITLE_KEYWORDS.search(title):
         return False
-    return True   # neutral titles (Software Engineer, Developer, etc.) → include
+    if JUNIOR_TITLE_KEYWORDS.search(title):
+        return True
+    return not SOFT_SENIOR_TITLE_KEYWORDS.search(title)   # neutral titles → include
 
-# Years-of-experience requirement stated in a JD body, e.g. "4+ years of
-# experience", "3-5 years' experience", "minimum of 5 years in ...". For a
-# range the lower bound counts ("3-5 years" is fine under a 3-year cap).
+# Years of experience a JD asks for: "4+ years of experience", "3-5 years'
+# experience", "minimum of five (5) years in a similar role", "5 yrs building
+# APIs". For a range the lower bound counts ("3-5 years" passes a 3.5 cap),
+# also when HTML stripping glued it to the previous word ("Requirements3-5").
+_NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+              "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+_NUM = r"(?:\d{1,2}(?:\.\d)?|one|two|three|four|five|six|seven|eight|nine|ten)"
 _YEARS_REQ = re.compile(
-    r"(?i)(?:minimum (?:of )?|at least )?(\d{1,2})\s*(?:\+|plus)?\s*"
-    r"(?:(?:-|–|to)\s*\d{1,2}\s*\+?\s*)?(?:years?|yrs?)'?"
-    r"(?=[^.]{0,60}?\b(?:experience|background|in (?:a |an )?(?:similar|trust|content|moderation|policy|operations)))"
+    rf"(?i)(?<!\d)(?<!\d\.)({_NUM})\)?\s*(?:\+|plus|or more|or above)?\s*"
+    rf"(?:(?:-|–|—|to)\s*{_NUM}\s*\+?\s*)?"
+    r"(?:years?|yrs?)\b"
+    r"(?=[^.;\n]{0,70}?\b(?:experience|exp\b|expertise|background|track record|hands[- ]on"
+    r"|commercial|professional|industry|in (?:a |an |the )?(?:similar|relevant|software|engineering"
+    r"|development|backend|java|python|devops|cloud|data|it\b|tech|technical|production|support"
+    r"|trust|content|moderation|policy|operations|role|position|field)"
+    r"|building|developing|working|writing|designing|delivering|programming|coding|using))"
 )
 
-def exceeds_max_experience(description: str, max_years: int = 3) -> bool:
-    """True if the JD asks for more than max_years of experience. Used for the
-    Trust & Safety bucket only (other domains rely on the title filter)."""
+def required_years(description: str) -> float:
+    """Largest number of years of experience the JD asks for (0 if none).
+    Numbers above 10 are ignored: "over 25 years of experience" is the company
+    describing itself, not a requirement."""
+    most = 0.0
     for m in _YEARS_REQ.finditer(description or ""):
-        if int(m.group(1)) > max_years:
-            return True
-    return False
+        tok = m.group(1).lower()
+        n = float(_NUM_WORDS.get(tok) or tok)
+        if 1 <= n <= 10:
+            most = max(most, n)
+    return most
+
+def exceeds_max_experience(description: str, max_years: float = MAX_YEARS_EXPERIENCE) -> bool:
+    """True if the JD asks for more than max_years of experience (all domains)."""
+    return required_years(description) > max_years
 
 # Companies whose listings should never enter the tracker (gig-work / AI-trainer
 # spam that floods every search query with hundreds of near-duplicate roles).
-COMPANY_BLOCKLIST = {"dataannotation", "data annotation"}
+COMPANY_BLOCKLIST = {"dataannotation", "data annotation", "joblet", "crewlia", "data robotics"}
+# Matched as whole names only (too short to match safely as a substring).
+COMPANY_BLOCKLIST_EXACT = {"hired"}
 
 def is_company_allowed(company: str) -> bool:
     c = (company or "").lower().strip()
-    return not any(b in c for b in COMPANY_BLOCKLIST)
+    return c not in COMPANY_BLOCKLIST_EXACT and not any(b in c for b in COMPANY_BLOCKLIST)
 
 # Titles that aren't software-engineering roles. Scrapers ingest these because
 # generic queries like "graduate engineer" or "junior analyst" match civil/lab/
@@ -294,6 +346,147 @@ NON_SWE_TITLE = re.compile(
 
 def is_swe_title(title: str) -> bool:
     return not NON_SWE_TITLE.search(title or "")
+
+# ── Relevance allow-list ──────────────────────────────────────────────────────
+# The boards pad thin searches with whatever they have: on 2026-11-07 the
+# "software engineer" searches brought in accountants, supply planners, sales
+# and manufacturing roles, and ~80% of the day's 502 new jobs were off-target.
+# So a title now has to name a tech role to get in, and role-defining non-tech
+# words win even over a tech word ("PLC Programmer", "Manufacturing Automation
+# Engineer", "Analog IC Design Engineer").
+def _words(*alternatives):
+    return re.compile(r"(?i)\b(?:" + "|".join(alternatives) + r")\b")
+
+_HARD_NON_TECH = _words(
+    # manufacturing, supply chain, logistics, engineering trades
+    r"manufactur\w*", r"supply", r"planner", r"procurement", r"purchasing", r"buyers?",
+    r"logistics", r"warehouse", r"inventory", r"freight", r"forklift", r"rigger", r"crane",
+    r"production (?:operator|technician|supervisor|engineer|planning|planner|co-?ordinator)",
+    r"process (?:engineer|development|science|technician)", r"mould\w*", r"mold\w*", r"lean",
+    r"npi", r"npd", r"maintenance", r"mechanical", r"electrical", r"civil", r"structural",
+    r"chemical", r"drainage", r"rail", r"commissioning", r"cost engineer", r"project engineer",
+    r"controls engineer", r"plc", r"scada", r"dcs", r"delta ?v", r"mes", r"cnc", r"cad programmer",
+    r"(?<!software )(?<!test )(?<!qa )(?<!cloud )(?<!devops )(?<!network )(?<!it )"
+    r"automation (?:engineer|graduate|equipment|technician)",
+    r"(?<!software )(?<!data )quality (?:engineer|graduate|technician|specialist|officer|control|validation"
+    r"|& compliance|and compliance|& governance|and governance)",
+    r"qc", r"pqa", r"csv", r"gmp", r"validation (?:engineer|specialist|analyst)", r"qualified person",
+    r"(?<!ai )lab", r"laborator\w*", r"chemist", r"microbiolog\w*", r"technologist", r"clinical",
+    r"regulatory affairs", r"health (?:and|&) safety", r"ehs", r"shesq", r"lims",
+    r"data integrity",
+    # hardware, electronics, field service
+    r"analog", r"asic", r"fpga", r"mixed[- ]signal", r"ic design\w*", r"verification engineer",
+    r"semiconductor", r"silicon", r"gpu design", r"rf engineer", r"camera tuning",
+    r"characteri[sz]ation", r"optic\w*", r"photonic\w*", r"security systems",
+    r"field (?:service|services|technical|engineer|network|customer|safety)",
+    # finance and accounting roles
+    r"accountants?", r"accounting", r"bookkeep\w*", r"book keeper", r"auditor", r"payroll",
+    r"fp&a", r"underwrit\w*", r"credit control\w*", r"transfer agency",
+    r"fund (?:accountant|accounting|administrator|administration)",
+    # sales, recruitment, customer service
+    r"sales", r"account executive", r"business develop\w*", r"merchandis\w*", r"recruit\w*",
+    r"talent acquisition", r"customer (?:service|care)", r"receptionist", r"front of house",
+    r"showroom", r"aftersales",
+    # gig AI-training work and other non-tech roles
+    r"company secretar\w*", r"information developer", r"ai (?:trainer|training|tutor)",
+    r"data (?:entry|verification|accuracy|assessment|review|reviewer)",
+    r"teacher", r"tutor", r"lecturer", r"nurs(?:e|es|ing)", r"care (?:assistant|worker)",
+    r"social care", r"youth", r"housing", r"veterinary", r"dental", r"dentistry",
+    r"farm\w*", r"ecolog\w*", r"ombudsman",
+)
+
+# Roles that need a language other than English.
+_LANGUAGE_ROLE = _words(
+    r"speaking", r"speakers?", r"bilingual", r"multilingual", r"fluent",
+    r"german", r"french", r"italian", r"spanish", r"portuguese", r"dutch", r"flemish", r"polish",
+    r"russian", r"turkish", r"chinese", r"mandarin", r"cantonese", r"japanese", r"korean",
+    r"arabic", r"hebrew", r"greek", r"czech", r"slovak", r"hungarian", r"romanian", r"bulgarian",
+    r"croatian", r"serbian", r"ukrainian", r"swedish", r"danish", r"norwegian", r"finnish",
+    r"nordics?", r"icelandic", r"estonian", r"latvian", r"lithuanian", r"thai", r"vietnamese",
+    r"indonesian", r"malay", r"hindi", r"urdu", r"farsi", r"persian", r"benelux", r"dach",
+)
+
+# A title with one of these is a tech role.
+_STRONG_TECH = _words(
+    r"software", r"developers?", r"programmers?", r"dev ?ops", r"devsecops", r"sre",
+    r"site reliability", r"sde", r"swe", r"sdet", r"full[- ]?stack", r"back[- ]?end",
+    r"front[- ]?end", r"web (?:engineer|developer)", r"mobile (?:engineer|developer|app\w*)",
+    r"ios", r"android", r"flutter", r"react", r"angular", r"vue(?:\.?js)?", r"node(?:\.?js)?",
+    r"java", r"j2ee", r"spring boot", r"python", r"golang", r"kotlin", r"scala", r"typescript",
+    r"javascript", r"rust", r"ruby", r"rails", r"php", r"perl",
+    r"cloud (?:engineer|developer|architect|support|operations|platform|consultant|administrator)",
+    r"cloud native",
+    r"aws", r"azure", r"gcp", r"kubernetes", r"k8s", r"terraform", r"ansible",
+    r"platform engineer", r"infrastructure (?:engineer|analyst|support)",
+    r"data (?:engineer|engineering|scientist|science|modell?er|architect|platform|warehouse)",
+    r"data quality engineer",
+    r"machine learning", r"ml", r"deep learning", r"nlp", r"llm", r"computer vision", r"mlops",
+    r"ai (?:engineer|developer|scientist|researcher|enablement|software|platform|solutions?)",
+    r"generative ai", r"gen ?ai", r"database", r"dba", r"etl", r"elt", r"snowflake",
+    r"databricks", r"sql", r"power ?bi", r"tableau", r"looker",
+    r"information technology", r"help ?desk", r"service desk", r"desktop support",
+    r"end[- ]user (?:support|computing|services)", r"deskside", r"tech(?:nical)? support",
+    r"systems? (?:administrator|admin|engineer|developer|development engineer)", r"sysadmin", r"linux", r"unix",
+    r"windows (?:engineer|administrator|support|server)", r"wintel", r"vmware", r"citrix",
+    r"active directory", r"m365", r"office 365", r"intune", r"data ?cent(?:er|re)",
+    r"network (?:engineer|administrator|technician|support|analyst)",
+    r"applications? (?:support|developer|engineer|analyst)", r"production support",
+    r"qa (?:engineer|analyst|tester|automation|test\w*)",
+    r"quality assurance (?:engineer|analyst|tester|automation|test\w*)",
+    r"testers?", r"test(?:ing)? (?:engineer|analyst|automation)", r"automation test\w*",
+    r"security (?:engineer|analyst|operations|test\w*|enablement)", r"cyber\w*",
+    r"soc analyst", r"penetration", r"vulnerability", r"infosec", r"incident response",
+    r"integration (?:engineer|developer)", r"microservices", r"forward deployed",
+    r"salesforce", r"service ?now", r"kdb", r"applied ai", r"copilot",
+    r"(?:ai|data|technology|analytics)(?:,| &| and)+ (?:ai|data|technology|analytics)",
+    r"sap (?:developer|abap|basis|consultant|analyst)", r"abap",
+    r"mainframe", r"cobol", r"dynamics (?:365|crm|developer)",
+)
+_STRONG_TECH_SYMBOLS = re.compile(r"(?i)(?:\.net\b|\bc#|\bc\+\+)")
+_IT_WORD = re.compile(r"\b(?:IT|ICT)\b")     # case-sensitive: not the word "it"
+
+# Non-tech domains: drop the title unless a strong tech word is also there
+# ("Java Developer - Financial Services" stays, "Finance Analyst" goes).
+_SOFT_NON_TECH = _words(
+    r"financ\w*", r"investments?", r"investor", r"insurance", r"claims", r"payments?",
+    r"pricing", r"trad(?:er|ing)", r"treasury", r"credit", r"lending", r"banking", r"funds?",
+    r"custody", r"derivatives", r"restructuring", r"private (?:credit|markets|equity)",
+    r"real (?:estate|assets)", r"compliance", r"regulatory", r"legal", r"solicitor",
+    r"paralegal", r"risk", r"aml", r"kyc", r"tax", r"audit\w*", r"actuar\w*",
+    r"marketing", r"commercial", r"customer", r"clients?", r"retail", r"brand", r"campaigns?",
+    r"call cent(?:er|re)", r"contact cent(?:er|re)",
+    r"paid (?:social|media)", r"social media", r"seo", r"copywriter", r"public relations",
+    r"communications", r"hr", r"human resources", r"talent", r"resourcing", r"reward", r"people",
+    r"admin\w*", r"office", r"operations", r"co-?ordinator", r"executive", r"assistant",
+    r"officer", r"secretary", r"project (?:manager|co-?ordinator|executive)", r"programme manager",
+    r"product (?:owner|manager|designer|specialist|marketing)", r"proposal", r"bid",
+    r"designer", r"ux", r"graphic", r"creative", r"research(?:er)?", r"market", r"strateg\w*",
+    r"energy", r"sustainab\w*", r"environmental", r"health", r"safety", r"medical",
+    r"healthcare", r"pharma\w*", r"care", r"facilities", r"construction", r"transport", r"cad",
+    r"technician",
+)
+
+# Tech-leaning titles that are only trusted without a non-tech domain word.
+_WEAK_TECH = _words(
+    r"business analyst", r"systems? analyst", r"product analyst", r"technical analyst",
+    r"engineering analyst",
+    r"technology (?:analyst|graduate|programme|program|associate|consultant)",
+    r"support (?:engineer|analyst)", r"technical services", r"escalations? engineer",
+    r"deployment engineer", r"disaster recovery", r"solutions? engineer",
+)
+
+def is_relevant_title(title: str) -> bool:
+    """True if the title names a role in one of Hari's domains."""
+    t = title or ""
+    if _HARD_NON_TECH.search(t) or _LANGUAGE_ROLE.search(t):
+        return False
+    if _STRONG_TECH.search(t) or _STRONG_TECH_SYMBOLS.search(t) or _IT_WORD.search(t):
+        return True
+    if _TS_TITLE.search(t) or strict_category(t, None):
+        return True
+    if _SOFT_NON_TECH.search(t):
+        return False
+    return bool(_WEAK_TECH.search(t))
 
 def slug(text):
     text = re.sub(r"[^a-z0-9\s]", "", text.lower().strip())
@@ -347,6 +540,59 @@ def _charge_cap_kwargs(actor_client, max_items, max_usd):
         kw["max_total_charge_usd"] = Decimal(str(round(max(max_usd, MIN_CHARGE_CAP_USD), 4)))
     return kw
 
+# Errors a retry can't fix: out of credit, bad token, actor gone.
+_NO_RETRY = ("hard limit", "usage limit", "monthly usage", "credit", "insufficient",
+             "not enough", "unauthorized", "authentication", "token", "not found")
+
+def _run_actor(client, actor_id, run_input, timeout_secs=None, max_items=None, max_usd=None):
+    """Run an actor and return its dataset items. A transient failure (network
+    blip, Apify 5xx) gets one retry instead of losing that search."""
+    actor = client.actor(actor_id)
+    kw = {}
+    if timeout_secs:
+        kw.update(_run_timeout_kwargs(actor, timeout_secs))
+    if max_items is not None:
+        kw.update(_charge_cap_kwargs(actor, max_items, max_usd))
+    run = None
+    for attempt in (1, 2):
+        try:
+            run = actor.call(run_input=run_input, **kw)
+            break
+        except Exception as e:
+            if attempt == 2 or any(s in str(e).lower() for s in _NO_RETRY):
+                raise
+            print(f"        ↻  {actor_id.split('/')[-1]}: {str(e)[:120]} (retrying in 15 s)")
+            time.sleep(15)
+    if run is None:
+        return []
+    for attempt in (1, 2, 3):
+        try:
+            return list(client.dataset(_dataset_id(run)).iterate_items())
+        except Exception:
+            if attempt == 3:
+                raise
+            time.sleep(5)
+
+_CREDIT_WARNED = False
+
+def apify_credit_left():
+    """USD left under this Apify account's monthly usage limit, or None if the
+    API can't say (the run then carries on without the credit guard)."""
+    if not APIFY_TOKEN:
+        return None
+    try:
+        req = urllib.request.Request("https://api.apify.com/v2/users/me/limits",
+                                     headers={"Authorization": f"Bearer {APIFY_TOKEN}"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.load(resp)["data"]
+        return float(data["limits"]["maxMonthlyUsageUsd"]) - float(data["current"]["monthlyUsageUsd"])
+    except Exception as e:
+        global _CREDIT_WARNED
+        if not _CREDIT_WARNED:      # once per run, not before every search
+            print(f"    ⚠  Couldn't read the Apify credit ({str(e)[:100]}); carrying on without the credit check")
+            _CREDIT_WARNED = True
+        return None
+
 # LinkedIn job IDs already in jobs.json or seen earlier in this run. Sent as
 # exclude_job_ids: the actor skips those jobs without charging for them, so
 # overlapping searches and wide catch-up windows only pay for new postings.
@@ -386,9 +632,9 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
     "r2592000" fields are no longer read, so seniority is filtered by title.
     """
     try:
-        actor = client.actor("worldunboxer/rapid-linkedin-scraper")
-        run = actor.call(
-            run_input={
+        items = _run_actor(
+            client, "worldunboxer/rapid-linkedin-scraper",
+            {
                 "jobs_titles":         [query],
                 "location":            "Ireland",
                 "jobs_entries":        max_results,
@@ -396,11 +642,10 @@ def search_linkedin(client, query, max_results=RESULTS_PER_QUERY):
                 "job_post_time":       str(LOOKBACK_DAYS * 86400),
                 "exclude_job_ids":     sorted(SEEN_LINKEDIN_IDS),
             },
-            **_run_timeout_kwargs(actor, LINKEDIN_TIMEOUT_SECS),
+            timeout_secs=LINKEDIN_TIMEOUT_SECS,
             # $0.0001/job + $0.00025 detail enrichment, plus start fees
-            **_charge_cap_kwargs(actor, max_results, max_results * 0.0005 + 0.01),
+            max_items=max_results, max_usd=max_results * 0.0005 + 0.01,
         )
-        items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
         for item in items:
             title   = (_s(item.get("job_title")) or _s(item.get("title")) or "").strip()
@@ -431,9 +676,9 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
     (Indeed caps the window at 14 days).
     """
     try:
-        actor = client.actor("valig/indeed-jobs-scraper")
-        run = actor.call(
-            run_input={
+        items = _run_actor(
+            client, "valig/indeed-jobs-scraper",
+            {
                 "country":    "ie",
                 "title":      query,
                 "location":   "Ireland",
@@ -441,9 +686,8 @@ def search_indeed(client, query, max_results=RESULTS_PER_QUERY):
                 "datePosted": _indeed_date_posted(LOOKBACK_DAYS),
             },
             # $0.0001/result plus start fees
-            **_charge_cap_kwargs(actor, max_results, max_results * 0.00015 + 0.01),
+            max_items=max_results, max_usd=max_results * 0.00015 + 0.01,
         )
-        items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
         # Since the actor's Sep 2026 update, company/location/description are
         # nested objects (employer.name, location.city, description.text);
@@ -477,21 +721,20 @@ def search_glassdoor(client, query, max_results=RESULTS_PER_QUERY):
     Dedicated Glassdoor scraper — Ireland location, last LOOKBACK_DAYS.
     """
     try:
-        actor = client.actor("valig/glassdoor-jobs-scraper")
         # Glassdoor's crawler sometimes hangs ~2 min retrying; a timed-out
         # run still returns whatever it collected.
-        run = actor.call(
-            run_input={
+        items = _run_actor(
+            client, "valig/glassdoor-jobs-scraper",
+            {
                 "keywords": query,
                 "location": "Ireland",
                 "daysOld":  LOOKBACK_DAYS,
                 "limit":    max_results,
             },
-            **_run_timeout_kwargs(actor, GLASSDOOR_TIMEOUT_SECS),
+            timeout_secs=GLASSDOOR_TIMEOUT_SECS,
             # $0.0004/result plus start fees
-            **_charge_cap_kwargs(actor, max_results, max_results * 0.0006 + 0.01),
+            max_items=max_results, max_usd=max_results * 0.0006 + 0.01,
         )
-        items = list(client.dataset(_dataset_id(run)).iterate_items())
         jobs  = []
         for item in items:
             title   = (_s(item.get("jobTitle")) or _s(item.get("title")) or "").strip()
@@ -642,25 +885,26 @@ def save_jobs(jobs):
 _STRICT_CATEGORY_RULES = [
     (re.compile(r"(?i)\b(machine learning|\bml\b engineer|\bai\b engineer|deep learning|\bnlp\b|computer vision|\bllm\b|gen[- ]?ai|generative ai|ai agents|mlops|ai/ml|ai engineer|ml ops|ai software)\b"), "AI / ML"),
     (re.compile(r"(?i)\bdata scientists?\b|\b(bio)?statistician\b|statistical programmer|\bdata science\b"), "Data Scientist"),
-    (re.compile(r"(?i)\b(data analyst|bi analyst|business intelligence|reporting analyst|analytics analyst|data analytics)\b"), "Data Analyst"),
-    (re.compile(r"(?i)\b(data engineer(ing)?|etl (developer|engineer)|analytics engineer|big data (engineer|developer)|data platform engineer|data warehouse (engineer|developer)|databricks (engineer|developer)|(pl/?)?sql developer|database developer)\b"), "Data Engineer"),
-    (re.compile(r"(?i)\b(helpdesk|help desk|service desk|desktop support|ict support|technical support|it support|l1 support|l2 support|level 1 support|level 2 support|systems? admin|data ?cent(er|re) (technician|operations))\b"), "IT Support"),
-    (re.compile(r"(?i)\b(devops|\bsre\b|site reliability|cloud engineer|platform engineer|aws engineer|azure engineer|kubernetes|infrastructure engineer|terraform|application support|production support|reliability engineer|cloud operations|cloud platform|cloud architect|cloud developer|cloud security|cybersecurity|cyber security|security engineer|qa engineer|test automation)\b"), "Production Support"),
+    (re.compile(r"(?i)\b(data analyst|bi analyst|business intelligence|reporting analyst|analytics analyst|data analytics|business analyst|product analyst)\b"), "Data Analyst"),
+    (re.compile(r"(?i)\b(data engineer(ing)?|etl (developer|engineer)|analytics engineer|big data (engineer|developer)|data platform engineer|data warehouse (engineer|developer)|databricks (engineer|developer)|(pl/?)?sql developer|database developer|data modell?er|snowflake (developer|engineer))\b"), "Data Engineer"),
+    (re.compile(r"(?i)\b(helpdesk|help desk|service desk|desktop support|ict support|technical support|it support|l1 support|l2 support|level 1 support|level 2 support|systems? admin|system administrator|data ?cent(er|re)|information technology|it technician|desktop (technician|engineer|analyst)|end[- ]user|deskside|network (engineer|administrator|technician|support)|deployment engineer)\b"), "IT Support"),
+    (re.compile(r"(?i)\b(devops|\bsre\b|site reliability|cloud engineer|platform engineer|aws engineer|azure engineer|kubernetes|infrastructure engineer|terraform|application support|production support|reliability engineer|cloud operations|cloud platform|cloud architect|cloud developer|cloud security|cybersecurity|cyber security|security engineer|qa engineer|test automation|support engineer|support analyst|escalations? engineer|technical services engineer|disaster recovery|testers?|test (analyst|engineer)|qa (analyst|tester)|quality assurance|sdet)\b"), "Production Support"),
     # Language before stack: "Full Stack Java Developer" is a Java role and
     # "Python Backend Engineer" a Python one; a plain "Backend Engineer" stays
     # under Java / Backend.
     (re.compile(r"(?i)\b(java\b|spring boot|jvm|scala (engineer|developer)|kotlin (engineer|developer))\b"), "Java / Backend"),
     (re.compile(r"(?i)\b(python|django|flask|fastapi|pyspark|airflow developer)\b"), "Python"),
     (re.compile(r"(?i)\b(backend (engineer|developer|software)|back[- ]end (engineer|developer))\b"), "Java / Backend"),
-    (re.compile(r"(?i)\b(react|vue|angular|frontend|front[- ]end|\bui\b engineer|\bui\b developer|full[- ]?stack|fullstack|mobile (engineer|developer)|\bios\b engineer|android (engineer|developer)|web developer|wordpress)\b"), "Full Stack"),
-    (re.compile(r"(?i)\b(software engineer|software developer|sr software|associate software|junior software|graduate software|software internship)\b"), "Full Stack"),
+    (re.compile(r"(?i)\b(react|vue|angular|frontend|front[- ]end|\bui\b engineer|\bui\b developer|full[- ]?stack|fullstack|mobile (engineer|developer)|\bios\b engineer|android (engineer|developer)|flutter|web developer|wordpress)\b"), "Full Stack"),
+    (re.compile(r"(?i)\b(software engineer|software engineering|software developer|software development|sr software|associate software|junior software|graduate software|software internship|sde|forward deployed|salesforce|servicenow)\b"), "Full Stack"),
 ]
 
 _TS_TITLE = re.compile(
-    r"(?i)\b(trust\s*(&|and)\s*safety|content (moderat\w*|review\w*|polic\w*|safety|integrity)"
+    r"(?i)\b(trust\s*(&|and)\s*(safety|risk)|content (moderat\w*|review\w*|polic\w*|safety|integrity)"
     r"|moderator|policy enforcement|community (operations|standards|integrity|safety)"
     r"|online safety|user safety|integrity (analyst|specialist|operations|associate)"
-    r"|abuse (analyst|investigat\w*|specialist)|safety (analyst|specialist|associate|agent))\b"
+    r"|abuse (analyst|investigat\w*|specialist)|safety (analyst|specialist|associate|agent)"
+    r"|(video|child|platform|ads?|brand|marketplace) safety|fraud (investigat\w*|analyst|specialist|agent|associate))\b"
 )
 # SWE roles on T&S teams ("Trust & Safety Software Engineer") stay in their
 # engineering domain.
@@ -728,6 +972,21 @@ def make_entry(r, category, next_num):
         entry["description"] = desc
     return entry
 
+def rejection_reason(r, category):
+    """Why a scraped job stays out of the tracker, or None to keep it."""
+    title = r.get("title", "")
+    if not is_company_allowed(r.get("company", "")):
+        return "blocked company"
+    if not is_experience_appropriate(title):
+        return "senior title"
+    if not is_swe_title(title) or not is_relevant_title(title):
+        return "off-target role"
+    if is_ts_search_noise(title, category):
+        return "T&S search noise"
+    if exceeds_max_experience(_s(r.get("description", ""))):
+        return f"JD asks for >{MAX_YEARS_EXPERIENCE:g} yrs"
+    return None
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     print(f"🔍  Multi-platform job search — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
@@ -743,22 +1002,35 @@ def main():
     existing_ids = {j["id"] for j in existing}
     SEEN_LINKEDIN_IDS.update(filter(None, (linkedin_job_id(j.get("apply_url")) for j in existing)))
     print(f"    Lookback: {LOOKBACK_DAYS} days  |  known LinkedIn jobs skipped: {len(SEEN_LINKEDIN_IDS)}")
+    print(f"    Keeping tech roles that ask for at most {MAX_YEARS_EXPERIENCE:g} years of experience")
+    credit = apify_credit_left()
+    if credit is not None:
+        print(f"    Apify credit left this month: ${credit:.2f}")
     new_jobs     = []
     next_num     = max((j.get("num", 0) for j in existing), default=0) + 1
+    dropped      = collections.Counter()
 
     # (label, fallback category, queries, results per source, use Glassdoor)
-    plan = [("Software engineering (broad)", "Full Stack", BROAD_SWE_QUERIES, BROAD_SWE_RESULTS, True)]
+    plan = [("Java / backend / support (broad)", "Java / Backend", BROAD_JAVA_QUERIES, BROAD_SWE_RESULTS, True),
+            ("Software engineering (broad)", "Full Stack", BROAD_SWE_QUERIES, BROAD_SWE_RESULTS, True)]
     plan += [(cat, cat, qs,
-              SWE_RESULTS_PER_QUERY if cat in SWE_BUCKETS else RESULTS_PER_QUERY,
+              JAVA_RESULTS_PER_QUERY if cat == "Java / Backend"
+              else SWE_RESULTS_PER_QUERY if cat in SWE_BUCKETS else RESULTS_PER_QUERY,
               cat in SWE_BUCKETS)
              for cat, qs in SEARCHES]
 
-    out_of_time = False
+    stop_reason = None
     for (label, category, queries, limit, use_glassdoor) in plan:
         print(f"\n  📂  {label}")
         for query in queries:
             if time.time() - started > SEARCH_BUDGET_MINUTES * 60:
-                out_of_time = True
+                stop_reason = f"Search time budget ({SEARCH_BUDGET_MINUTES} min) used up"
+                break
+            # Stop cleanly before the monthly limit is hit, instead of every
+            # remaining search failing. Searches run in priority order.
+            credit = apify_credit_left()
+            if credit is not None and credit < CREDIT_RESERVE_USD:
+                stop_reason = f"Apify credit nearly used up (${credit:.2f} left)"
                 break
             print(f"    🔎  {query}")
 
@@ -785,26 +1057,23 @@ def main():
             # they cost ~1.5 min per query for zero usable results.
 
             for r in all_results:
-                if not is_experience_appropriate(r["title"]):
-                    continue
-                if not is_company_allowed(r["company"]):
-                    continue
-                if not is_swe_title(r["title"]):
-                    continue
-                if is_ts_search_noise(r["title"], category):
-                    continue
-                if (strict_category(r["title"], category) == "Trust & Safety"
-                        and exceeds_max_experience(_s(r.get("description", "")))):
+                reason = rejection_reason(r, category)
+                if reason:
+                    dropped[reason] += 1
                     continue
                 jid = job_id(r["company"], r["title"])
-                if jid not in existing_ids:
-                    entry = make_entry(r, category, next_num)
-                    new_jobs.append(entry)
-                    existing_ids.add(jid)
-                    next_num += 1
-                    print(f"        ✓  [{r.get('source','?')}] {r['title']} @ {r['company']}")
-        if out_of_time:
-            print(f"\n  ⏱  Search budget ({SEARCH_BUDGET_MINUTES} min) used up — skipping the remaining searches")
+                if jid in existing_ids:
+                    dropped["already in tracker"] += 1
+                    continue
+                entry = make_entry(r, category, next_num)
+                new_jobs.append(entry)
+                existing_ids.add(jid)
+                next_num += 1
+                print(f"        ✓  [{r.get('source','?')}] {r['title']} @ {r['company']}")
+        # Save after every bucket, so a crash later on keeps what was found.
+        save_jobs(existing + new_jobs)
+        if stop_reason:
+            print(f"\n  ⏹  {stop_reason}: skipping the remaining searches (jobs found so far are kept)")
             break
     pool.shutdown(wait=True)
 
@@ -818,14 +1087,7 @@ def main():
             results, category = search_company_careers(client, company, url, cat)
             time.sleep(3)
             for r in results:
-                if not is_experience_appropriate(r["title"]):
-                    continue
-                if not is_company_allowed(r["company"]):
-                    continue
-                if not is_swe_title(r["title"]):
-                    continue
-                if (strict_category(r["title"], category) == "Trust & Safety"
-                        and exceeds_max_experience(_s(r.get("description", "")))):
+                if rejection_reason(r, category):
                     continue
                 jid = job_id(r["company"], r["title"])
                 if jid not in existing_ids:
@@ -840,6 +1102,11 @@ def main():
     all_jobs = existing + new_jobs
     save_jobs(all_jobs)
     print(f"\n✅  Total jobs: {len(all_jobs)}  |  New today: {len(new_jobs)}")
+    if dropped:
+        print("    Filtered out: " + ", ".join(f"{n} {why}" for why, n in dropped.most_common()))
+    credit = apify_credit_left()
+    if credit is not None:
+        print(f"    Apify credit left: ${credit:.2f}")
     return new_jobs
 
 if __name__ == "__main__":

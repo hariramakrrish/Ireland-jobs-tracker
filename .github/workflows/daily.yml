@@ -16,6 +16,12 @@ permissions:
   contents: write
   actions: read
 
+# A second run (manual or scheduled) waits for the one in progress instead of
+# running alongside it; nothing is ever cancelled mid-run.
+concurrency:
+  group: daily-pipeline
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -63,6 +69,10 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run job search & resume generation
+        # Safety net only: search (150 min) and resumes (120 min) stop
+        # themselves well before this. If it ever fires, the steps below still
+        # sync and push whatever was found.
+        timeout-minutes: 300
         env:
           APIFY_TOKEN:      ${{ secrets.APIFY_TOKEN }}
           GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
@@ -72,6 +82,9 @@ jobs:
         run: python scripts/run_pipeline.py
 
       - name: Sync new jobs.json rows into Supabase
+        # Runs even if the step above failed or timed out, so jobs found
+        # before a problem still reach the dashboard.
+        if: ${{ !cancelled() }}
         # The dashboard reads from Supabase via /api/jobs, NOT from git.
         # Without this step, newly-scraped jobs land in jobs.json but stay
         # invisible in the tracker until someone manually fires the
@@ -83,6 +96,7 @@ jobs:
         run: python scripts/migrate_to_supabase.py
 
       - name: Commit and push new resumes + updated data
+        if: ${{ !cancelled() }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

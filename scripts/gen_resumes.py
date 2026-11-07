@@ -614,6 +614,23 @@ def _ai_available():
     return _GENAI_AVAILABLE and bool(GEMINI_API_KEY)
 
 
+def _gemini_client():
+    # google-genai 3.0 (released 2026-11-06) made the stable v1 API the
+    # default, and v1 rejects system_instruction ("Developer instruction is
+    # not enabled for api version v1"): every resume on 2026-11-07 fell back
+    # to the static template. Pin the API version the prompts are built for.
+    return _genai.Client(api_key=GEMINI_API_KEY,
+                         http_options=_genai_types.HttpOptions(api_version="v1beta"))
+
+
+# Errors that will fail the same way for every job (bad request shape, bad
+# key, retired model). After a run of these, stop calling Gemini for the rest
+# of the run instead of spending ~7 s per job on doomed retries.
+_PERMANENT_AI_ERRORS = ("INVALID_ARGUMENT", "PERMISSION_DENIED", "UNAUTHENTICATED",
+                        "API key not valid", "NOT_FOUND")
+AI_PERMANENT_FAILURE_LIMIT = 5
+
+
 # Once Gemini reports the per-DAY quota is gone, every further call in this
 # run fails the same way — stop calling it instead of retrying each job
 # (that wasted ~30 min per run on the free tier's 20-requests/day cap).
@@ -644,7 +661,7 @@ def generate_ai_content(job, retry=2):
     Raises RuntimeError on unrecoverable error so the caller falls back to the
     static CONTENT templates.
     """
-    client = _genai.Client(api_key=GEMINI_API_KEY)
+    client = _gemini_client()
 
     def _s(val):
         return val if isinstance(val, str) else ""
@@ -1251,7 +1268,7 @@ WRITING STYLE:
 
 def generate_ts_ai_content(job, retry=2):
     """Gemini call for Trust & Safety JDs. Returns a dict shaped like TS_STATIC."""
-    client = _genai.Client(api_key=GEMINI_API_KEY)
+    client = _gemini_client()
     _s = lambda v: v if isinstance(v, str) else ""
     title       = _s(job.get("title", "")).strip()
     company     = _s(job.get("company", "")).strip()
@@ -1467,12 +1484,16 @@ def make_resume(filename, exp_bullets, skills, proj_list, certs,
 # ═══════════════════════════════════════════════════════════════════
 # MAIN ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════
-def generate_for_jobs(jobs_to_generate=None, force_regen=False):
+def generate_for_jobs(jobs_to_generate=None, force_regen=False, deadline=None):
     """
     Generate PDFs for the given list of jobs (or all jobs in jobs.json).
 
     force_regen=True  → delete existing PDF and regenerate (used when a JD was
                         just fetched and we want to upgrade from the static template).
+    deadline          → epoch seconds; stop starting new resumes after it, so a
+                        long batch can't push the daily workflow past GitHub's
+                        6-hour limit. Jobs left over still have no PDF and get
+                        one on the next daily run (or via "Make resume").
     """
     if not os.path.exists(JOBS_FILE):
         print("No jobs.json found — run search_jobs.py first.")
@@ -1490,8 +1511,23 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
         print(f"  📋  Using static templates (set GEMINI_API_KEY to enable AI generation)")
 
     generated = skipped = errors = ai_ok = ai_fallback = 0
+    permanent_ai_failures = 0     # consecutive
 
-    for job in targets:
+    def _note_ai_failure(e):
+        nonlocal use_ai, permanent_ai_failures
+        if any(k in str(e) for k in _PERMANENT_AI_ERRORS):
+            permanent_ai_failures += 1
+            if permanent_ai_failures >= AI_PERMANENT_FAILURE_LIMIT and use_ai:
+                use_ai = False
+                print(f"  ⛔  Gemini rejected {AI_PERMANENT_FAILURE_LIMIT} jobs in a row with the same kind of "
+                      f"error; using templates for the rest of this run. Last error: {str(e)[:200]}")
+        else:
+            permanent_ai_failures = 0
+
+    for n, job in enumerate(targets):
+        if deadline and time.time() > deadline:
+            print(f"\n  ⏱  Resume time budget used up: {len(targets) - n} resumes left for the next run")
+            break
         # Auto-assign resume filename if missing
         if not job.get("resume"):
             company = job.get("company", "unknown")
@@ -1511,10 +1547,12 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
                 try:
                     content = generate_ts_ai_content(job)
                     ai_ok += 1
+                    permanent_ai_failures = 0
                     print(f"  ✓  [AI T&S]  {job['company']} — {job['title']}")
                 except Exception as e:
                     print(f"  ⚠  [T&S fallback]  {job['company']} — {job['title']}  ({e})")
                     ai_fallback += 1
+                    _note_ai_failure(e)
             try:
                 make_ts_resume(fname, content)
                 generated += 1
@@ -1529,10 +1567,12 @@ def generate_for_jobs(jobs_to_generate=None, force_regen=False):
             try:
                 bullets, skills, projects = generate_ai_content(job)
                 ai_ok += 1
+                permanent_ai_failures = 0
                 print(f"  ✓  [AI]  {job['company']} — {job['title']}")
             except Exception as e:
                 print(f"  ⚠  [AI fallback]  {job['company']} — {job['title']}  ({e})")
                 ai_fallback += 1
+                _note_ai_failure(e)
 
         # ── Static fallback ────────────────────────────────────────
         if bullets is None:

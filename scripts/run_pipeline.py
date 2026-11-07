@@ -9,11 +9,15 @@ Resume generation strategy:
     after AI upgrade, and any PDFs that were deleted / never created)
   - Existing jobs with PDFs already present → skip (no re-gen needed daily)
 """
-import sys, os, re, json
+import sys, os, re, json, time, traceback
 sys.path.insert(0, os.path.dirname(__file__))
 
 import search_jobs
 import gen_resumes
+
+# Stop starting new resumes after this long, so search + resumes always finish
+# well inside GitHub's 6-hour job limit (search has its own 150-min budget).
+RESUME_BUDGET_MINUTES = int(os.environ.get("RESUME_BUDGET_MINUTES") or 120)
 
 SENIOR = re.compile(
     r"\b(senior|sr\.?|lead|principal|staff|head\s+of|director|vp\b|"
@@ -71,7 +75,14 @@ def main():
 
     # 1. Search for new jobs
     print("\n[1/3]  Searching for new jobs...")
-    new_jobs = search_jobs.main()
+    try:
+        new_jobs = search_jobs.main()
+    except Exception:
+        # search_jobs saves after every bucket; jobs it saved before the crash
+        # are picked up below as "missing PDF" and still get resumes + sync.
+        traceback.print_exc()
+        print("  ⚠  Search stopped on an error; carrying on with the jobs saved so far")
+        new_jobs = []
 
     # 2. Find existing Not Applied jobs whose PDF is missing (e.g. after AI upgrade)
     jobs_file  = os.path.join(os.path.dirname(os.path.dirname(__file__)),
@@ -110,7 +121,12 @@ def main():
     print(f"       Total to generate:         {len(all_to_gen)}")
 
     if all_to_gen:
-        gen_resumes.generate_for_jobs(all_to_gen)
+        try:
+            gen_resumes.generate_for_jobs(all_to_gen,
+                                          deadline=time.time() + RESUME_BUDGET_MINUTES * 60)
+        except Exception:
+            traceback.print_exc()
+            print("  ⚠  Resume generation stopped on an error; new jobs are still saved and synced")
     else:
         print("  Nothing to generate.")
 

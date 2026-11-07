@@ -1,4 +1,4 @@
 # Python deps for the Vercel function api/generate_resume.py (the pipeline's
 # own deps are in the repo-root requirements.txt).
-reportlab>=4.0.0
-google-genai>=0.1.1
+reportlab>=4.0.0,<6
+google-genai>=1.0.0,<3
