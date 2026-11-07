@@ -75,8 +75,13 @@ def main():
 
     # 1. Search for new jobs
     print("\n[1/3]  Searching for new jobs...")
+    token_error = None
     try:
         new_jobs = search_jobs.main()
+    except search_jobs.ApifyTokenError as e:
+        token_error = e
+        print(f"\n  ❌  {e}")
+        new_jobs = []
     except Exception:
         # search_jobs saves after every bucket; jobs it saved before the crash
         # are picked up below as "missing PDF" and still get resumes + sync.
@@ -132,6 +137,11 @@ def main():
 
     print(f"\n[3/3]  Pipeline complete.")
     print("=" * 60)
+    if token_error:
+        # Fail the workflow run (red X + e-mail) instead of a quiet "success"
+        # with 0 jobs. The sync/push steps still run after this.
+        print(f"::error title=Apify token rejected::{token_error}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

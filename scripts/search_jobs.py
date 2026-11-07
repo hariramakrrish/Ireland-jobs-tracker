@@ -15,7 +15,7 @@ Sources:
 
 All sources return structured data. Deduplicates against existing jobs.json.
 """
-import os, re, json, hashlib, time, inspect, collections, urllib.request
+import os, re, json, hashlib, time, inspect, collections, urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -575,23 +575,37 @@ def _run_actor(client, actor_id, run_input, timeout_secs=None, max_items=None, m
 
 _CREDIT_WARNED = False
 
+class ApifyTokenError(RuntimeError):
+    """APIFY_TOKEN is missing or rejected: no search can work this run."""
+
 def apify_credit_left():
     """USD left under this Apify account's monthly usage limit, or None if the
     API can't say (the run then carries on without the credit guard)."""
     if not APIFY_TOKEN:
-        return None
+        raise ApifyTokenError("APIFY_TOKEN is not set")
     try:
         req = urllib.request.Request("https://api.apify.com/v2/users/me/limits",
                                      headers={"Authorization": f"Bearer {APIFY_TOKEN}"})
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.load(resp)["data"]
         return float(data["limits"]["maxMonthlyUsageUsd"]) - float(data["current"]["monthlyUsageUsd"])
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            # On 2026-11-07 a mistyped token made all 130 searches fail and
+            # the run still "succeeded" with 0 jobs.
+            raise ApifyTokenError("Apify rejected APIFY_TOKEN (401 Unauthorized): update the "
+                                  "repo secret with the full token from Apify Console > Settings > "
+                                  "API & Integrations")
+        return _credit_unknown(e)
     except Exception as e:
-        global _CREDIT_WARNED
-        if not _CREDIT_WARNED:      # once per run, not before every search
-            print(f"    ⚠  Couldn't read the Apify credit ({str(e)[:100]}); carrying on without the credit check")
-            _CREDIT_WARNED = True
-        return None
+        return _credit_unknown(e)
+
+def _credit_unknown(e):
+    global _CREDIT_WARNED
+    if not _CREDIT_WARNED:      # once per run, not before every search
+        print(f"    ⚠  Couldn't read the Apify credit ({str(e)[:100]}); carrying on without the credit check")
+        _CREDIT_WARNED = True
+    return None
 
 # LinkedIn job IDs already in jobs.json or seen earlier in this run. Sent as
 # exclude_job_ids: the actor skips those jobs without charging for them, so
@@ -1003,7 +1017,7 @@ def main():
     SEEN_LINKEDIN_IDS.update(filter(None, (linkedin_job_id(j.get("apply_url")) for j in existing)))
     print(f"    Lookback: {LOOKBACK_DAYS} days  |  known LinkedIn jobs skipped: {len(SEEN_LINKEDIN_IDS)}")
     print(f"    Keeping tech roles that ask for at most {MAX_YEARS_EXPERIENCE:g} years of experience")
-    credit = apify_credit_left()
+    credit = apify_credit_left()    # raises ApifyTokenError for a bad token
     if credit is not None:
         print(f"    Apify credit left this month: ${credit:.2f}")
     new_jobs     = []
@@ -1028,7 +1042,11 @@ def main():
                 break
             # Stop cleanly before the monthly limit is hit, instead of every
             # remaining search failing. Searches run in priority order.
-            credit = apify_credit_left()
+            try:
+                credit = apify_credit_left()
+            except ApifyTokenError as e:      # token revoked mid-run
+                stop_reason = str(e)
+                break
             if credit is not None and credit < CREDIT_RESERVE_USD:
                 stop_reason = f"Apify credit nearly used up (${credit:.2f} left)"
                 break
