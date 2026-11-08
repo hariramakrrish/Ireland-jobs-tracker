@@ -21,7 +21,24 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from apify_client import ApifyClient
 
-APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
+def _clean_token(raw):
+    """The repo secret as a usable token. Pastes often carry stray spaces,
+    quotes, a 'Bearer ' prefix or a whole 'APIFY_TOKEN=...' line, and Apify
+    answers all of those with 401."""
+    t = (raw or "").strip()
+    m = re.search(r"apify_api_[A-Za-z0-9]+", t)
+    return m.group(0) if m else t.strip("'\" ")
+
+def token_shape(t):
+    """What the secret looks like, without revealing it."""
+    if not t:
+        return "the secret is empty"
+    if t.startswith("apify_api_"):
+        return f"the secret is {len(t)} characters and starts with apify_api_ like a personal API token"
+    return (f"the secret is {len(t)} characters and does not start with apify_api_, "
+            "so it is not a personal API token")
+
+APIFY_TOKEN = _clean_token(os.environ.get("APIFY_TOKEN"))
 ROOT        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JOBS_FILE   = os.path.join(ROOT, "web", "data", "jobs.json")
 
@@ -593,9 +610,9 @@ def apify_credit_left():
         if e.code == 401:
             # On 2026-11-07 a mistyped token made all 130 searches fail and
             # the run still "succeeded" with 0 jobs.
-            raise ApifyTokenError("Apify rejected APIFY_TOKEN (401 Unauthorized): update the "
-                                  "repo secret with the full token from Apify Console > Settings > "
-                                  "API & Integrations")
+            raise ApifyTokenError(f"Apify rejected APIFY_TOKEN (401 Unauthorized; {token_shape(APIFY_TOKEN)}): "
+                                  "update the repo secret with the full token from Apify Console > "
+                                  "Settings > API & Integrations")
         return _credit_unknown(e)
     except Exception as e:
         return _credit_unknown(e)

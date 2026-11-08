@@ -38,7 +38,7 @@ def kill_zombie_apify_runs():
     This cleanup runs first, every time, so we always start with a clean
     memory budget.
     """
-    token = os.environ.get("APIFY_TOKEN", "")
+    token = search_jobs.APIFY_TOKEN   # cleaned of stray spaces/quotes
     if not token:
         print("  ⚠  APIFY_TOKEN not set — skipping zombie cleanup")
         return
