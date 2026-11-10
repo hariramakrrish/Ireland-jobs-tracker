@@ -431,6 +431,10 @@ document.getElementById('pending-indicator').addEventListener('click', () => {
 // to unfiltered + scroll-to-top every refresh (= the "tab refresh" bug).
 let lastRefreshAt = Date.now();
 async function refreshJobsData() {
+  // New jobs come with new PDFs: re-read the resume manifest on every refresh,
+  // even when the job list itself is unchanged (the deploy carrying a run's
+  // PDFs goes live a minute or two after its jobs reach the database).
+  if (typeof loadResumeManifest === 'function') loadResumeManifest();
   try {
     const r = await fetch('/api/jobs?t=' + Date.now());
     if (!r.ok) return;
@@ -594,14 +598,25 @@ async function generateResumeNow(jobId, jd) {
   return { ok: false, queued: false, error };
 }
 
-fetch("resumes.json", { cache: "no-store" })
-  .then(r => r.ok ? r.json() : null)
-  .then(files => {
+// resumes.json lists the PDFs of the live deployment, and every daily run
+// redeploys with new ones. The job list refreshes itself (refreshJobsData),
+// so the manifest has to as well: a page opened before a run would otherwise
+// show the run's new jobs with "Make resume" although their PDFs are live.
+// "no-cache" revalidates by ETag, so an unchanged manifest costs a 304.
+async function loadResumeManifest() {
+  try {
+    const r = await fetch("resumes.json", { cache: "no-cache" });
+    if (!r.ok) return;
+    const files = await r.json();
     if (!Array.isArray(files)) return;
+    const changed = !RESUME_FILES || files.length !== RESUME_FILES.size
+                    || files.some(f => !RESUME_FILES.has(f));
+    if (!changed) return;
     RESUME_FILES = new Set(files);
     if (ALL_JOBS.length) refreshResumeSlots();
-  })
-  .catch(() => {});
+  } catch(e) {}
+}
+loadResumeManifest();
 
 fetch("api/resume-store", { cache: "no-store" })
   .then(r => r.ok ? r.json() : null)
